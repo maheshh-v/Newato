@@ -24,6 +24,8 @@ frontend/dist/
 # SQLite
 *.db
 *.sqlite
+*.db-shm
+*.db-wal
 
 # Logs
 logs/

@@ -18,6 +18,9 @@ class Settings:
     MAX_STEPS_PER_TASK: int = int(os.getenv("ARIA_MAX_STEPS_PER_TASK", "40"))
     TASK_TIMEOUT_SECONDS: int = int(os.getenv("ARIA_TASK_TIMEOUT_SECONDS", "300"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "groq")
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
     DB_PATH: Path = Path(__file__).parent / "aria.db"
     HOST: str = "127.0.0.1"
@@ -29,7 +32,9 @@ settings = Settings()
 def validate_config() -> list[str]:
     """Return list of validation errors. Empty list = all good."""
     errors: list[str] = []
-    if not settings.ANTHROPIC_API_KEY:
+    if settings.LLM_PROVIDER == "anthropic" and not settings.ANTHROPIC_API_KEY:
         errors.append("ANTHROPIC_API_KEY is not set in .env")
+    if settings.LLM_PROVIDER == "groq" and not settings.GROQ_API_KEY:
+        errors.append("GROQ_API_KEY is not set in .env")
     settings.ARIA_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     return errors

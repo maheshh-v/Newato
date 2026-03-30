@@ -236,12 +236,10 @@ Rules:
 - `LOG_LEVEL` (Optional): Logging verbosity. Default: `INFO`.
 
 ## 12. KNOWN ISSUES AND BLOCKERS
-- **The 401 Unauthorized Blocker:** 
-  - *What the problem is:* Submitting a task immediately results in task failure and a `401 Unauthorized` API error from Anthropic.
-  - *Why it happens:* The `ANTHROPIC_API_KEY` in the `.env` file is either empty or invalid, so the initial authentication for the ReAct loop is rejected.
-  - *How to fix it:* Insert a valid Anthropics API key into `.env` at the project root.
+No current blockers.
 
 ## 13. DECISIONS LOG
+- **LLM Provider:** `LLM_PROVIDER=groq` is now the default provider. It's free and incurs no cost, utilizing Groq's high-speed LLaMA 3.3 model. Anthropic Claude remains supported via configuration.
 - **Electron over Native (Swift/C++):** Decided heavily in favor of Electron for rapid, cross-platform iteration and because standard web tech combined with Python covers all required capability.
 - **Python over Node for Backend:** Python chosen for backend despite Electron using Node due to Python's undeniably superior ecosystem for data extraction (Playwright), AI engineering (LangChain/Anthropic SDK), and numerical reasoning.
 - **SQLite Database:** Decided against PostgreSQL to ensure the app is a 100% self-contained local desktop application with zero external infrastructure dependencies.

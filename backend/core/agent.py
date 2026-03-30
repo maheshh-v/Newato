@@ -8,6 +8,7 @@ import time
 from typing import Any, Optional
 
 import anthropic
+import groq
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
 from config import settings
@@ -96,11 +97,29 @@ async def run_agent(task: Task) -> None:
         "status": "running",
     })
 
-    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    if settings.LLM_PROVIDER == "anthropic":
+        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    elif settings.LLM_PROVIDER == "groq":
+        client = groq.AsyncGroq(api_key=settings.GROQ_API_KEY)
+    else:
+        raise ValueError(f"Unknown LLM provider: {settings.LLM_PROVIDER}")
+
+    # Build Groq compatible tool list once
+    GROQ_TOOLS = []
+    for tool in TOOL_REGISTRY:
+        GROQ_TOOLS.append({
+            "type": "function",
+            "function": {
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": tool["input_schema"],
+            }
+        })
 
     # State
     scratchpad: dict[str, str] = {}
     messages: list[dict] = []
+    groq_messages: list[dict] = []
     step_number = 0
     consecutive_failures = 0
     MAX_CONSECUTIVE = 3
@@ -179,45 +198,101 @@ async def run_agent(task: Task) -> None:
                 scratchpad=json.dumps(scratchpad, indent=2) if scratchpad else "{}",
             )
 
-            # Call Claude
-            try:
-                response = await client.messages.create(
-                    model=settings.CLAUDE_MODEL,
-                    max_tokens=4096,
-                    system=system,
-                    tools=TOOL_REGISTRY,
-                    messages=messages,
-                )
-            except anthropic.APIError as e:
-                logger.error("Claude API error", task_id=task_id, error=str(e))
-                await _finalize_failure(task_id, db, f"API error: {str(e)[:200]}", "Claude API call")
-                return
-
-            # Add assistant response to history
-            messages.append({"role": "assistant", "content": response.content})
-
-            # Process response blocks
-            tool_calls = [b for b in response.content if b.type == "tool_use"]
-
-            if not tool_calls:
-                # No tool call — agent is done thinking without acting
-                if response.stop_reason == "end_turn":
-                    logger.info("Agent stopped without tool call", task_id=task_id)
-                    await _finalize_failure(task_id, db, "Agent stopped without completing task", "No tool calls")
+            # Call LLM based on provider
+            tool_calls = []
+            if settings.LLM_PROVIDER == "anthropic":
+                try:
+                    response = await client.messages.create(
+                        model=settings.CLAUDE_MODEL,
+                        max_tokens=4096,
+                        system=system,
+                        tools=TOOL_REGISTRY,
+                        messages=messages,
+                    )
+                except anthropic.APIError as e:
+                    logger.error("Claude API error", task_id=task_id, error=str(e))
+                    await _finalize_failure(task_id, db, f"API error: {str(e)[:200]}", "Claude API call")
                     return
-                # Try again with a nudge
-                messages.append({
-                    "role": "user",
-                    "content": "Please continue with the task by calling a tool.",
-                })
-                continue
+
+                # Add assistant response to history
+                messages.append({"role": "assistant", "content": response.content})
+
+                # Process response blocks
+                tool_calls_raw = [b for b in response.content if b.type == "tool_use"]
+                
+                if not tool_calls_raw:
+                    # No tool call — agent is done thinking without acting
+                    if response.stop_reason == "end_turn":
+                        logger.info("Agent stopped without tool call", task_id=task_id)
+                        await _finalize_failure(task_id, db, "Agent stopped without completing task", "No tool calls")
+                        return
+                    messages.append({
+                        "role": "user",
+                        "content": "Please continue with the task by calling a tool.",
+                    })
+                    continue
+                
+                # Normalize tool_calls
+                for b in tool_calls_raw:
+                    tool_calls.append({"id": b.id, "name": b.name, "input": b.input})
+                    
+            elif settings.LLM_PROVIDER == "groq":
+                if not groq_messages:
+                    groq_messages.append({"role": "system", "content": system})
+                else:
+                    groq_messages[0] = {"role": "system", "content": system}
+                
+                try:
+                    response = await client.chat.completions.create(
+                        model=settings.GROQ_MODEL,
+                        messages=groq_messages,
+                        tools=GROQ_TOOLS,
+                        tool_choice="auto",
+                    )
+                except Exception as e:
+                    logger.error("Groq API error", task_id=task_id, error=str(e))
+                    await _finalize_failure(task_id, db, f"API error: {str(e)[:200]}", "Groq API call")
+                    return
+                
+                msg = response.choices[0].message
+                
+                # Append assistant message
+                # Pydantic serialization for the message
+                assistant_msg = {"role": "assistant", "content": msg.content or ""}
+                if msg.tool_calls:
+                    assistant_msg["tool_calls"] = []
+                    for tc in msg.tool_calls:
+                        assistant_msg["tool_calls"].append({
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        })
+                groq_messages.append(assistant_msg)
+                
+                if not msg.tool_calls:
+                    if response.choices[0].finish_reason == "stop":
+                        logger.info("Agent stopped without tool call", task_id=task_id)
+                        await _finalize_failure(task_id, db, "Agent stopped without completing task", "No tool calls")
+                        return
+                    groq_messages.append({
+                        "role": "user",
+                        "content": "Please continue with the task by calling a tool.",
+                    })
+                    continue
+                
+                # Normalize tool_calls
+                for b in msg.tool_calls:
+                    tool_calls.append({"id": b.id, "name": b.function.name, "input": json.loads(b.function.arguments)})
 
             # Execute all tool calls in the response (usually one)
-            tool_results = []
+            tool_results_anthropic = []
             for tool_call in tool_calls:
                 step_number += 1
-                tool_name: str = tool_call.name
-                inputs: dict = tool_call.input or {}
+                tool_name: str = tool_call["name"]
+                inputs: dict = tool_call["input"] or {}
                 step_text = _make_step_text(tool_name, inputs)
 
                 logger.info("Tool call", task_id=task_id, step=step_number, tool=tool_name)
@@ -294,11 +369,19 @@ async def run_agent(task: Task) -> None:
                         "image_b64": result["image_b64"]
                     })
 
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_call.id,
-                    "content": result_text,
-                })
+                if settings.LLM_PROVIDER == "anthropic":
+                    tool_results_anthropic.append({
+                        "type": "tool_result",
+                        "tool_use_id": tool_call["id"],
+                        "content": result_text,
+                    })
+                elif settings.LLM_PROVIDER == "groq":
+                    groq_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "name": tool_name,
+                        "content": result_text,
+                    })
 
                 # Check consecutive failure limit
                 if consecutive_failures >= MAX_CONSECUTIVE:
@@ -312,7 +395,8 @@ async def run_agent(task: Task) -> None:
                     return
 
             # Append tool results for next iteration
-            messages.append({"role": "user", "content": tool_results})
+            if settings.LLM_PROVIDER == "anthropic":
+                messages.append({"role": "user", "content": tool_results_anthropic})
 
         # Exceeded max steps
         await _finalize_failure(
