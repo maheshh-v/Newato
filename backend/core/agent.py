@@ -8,7 +8,6 @@ import time
 from typing import Any, Optional
 
 import anthropic
-import groq
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
 from config import settings
@@ -100,6 +99,8 @@ async def run_agent(task: Task) -> None:
     if settings.LLM_PROVIDER == "anthropic":
         client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
     elif settings.LLM_PROVIDER == "groq":
+        # Lazy import so missing groq package doesn't crash backend startup.
+        import groq
         client = groq.AsyncGroq(api_key=settings.GROQ_API_KEY)
     else:
         raise ValueError(f"Unknown LLM provider: {settings.LLM_PROVIDER}")

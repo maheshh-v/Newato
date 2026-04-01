@@ -18,7 +18,7 @@ class Settings:
     MAX_STEPS_PER_TASK: int = int(os.getenv("ARIA_MAX_STEPS_PER_TASK", "40"))
     TASK_TIMEOUT_SECONDS: int = int(os.getenv("ARIA_TASK_TIMEOUT_SECONDS", "300"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "groq")
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "anthropic")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     CLAUDE_MODEL: str = "claude-sonnet-4-20250514"

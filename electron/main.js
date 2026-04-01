@@ -12,7 +12,7 @@ const fs = require('fs');
 // ─── Constants ────────────────────────────────────────────────────────────────
 const IS_DEV = process.argv.includes('--dev');
 const FRONTEND_URL = IS_DEV ? 'http://localhost:5173' : `file://${path.join(__dirname, '../frontend/dist/index.html')}`;
-const WS_PORT = 8766;
+const WS_PORT = Number(process.env.ARIA_WEBSOCKET_PORT || '8765');
 const SHORTCUT = process.platform === 'darwin' ? 'Command+Shift+Space' : 'Control+Shift+Space';
 
 // ─── State ────────────────────────────────────────────────────────────────────
