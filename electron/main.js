@@ -12,7 +12,7 @@ const fs = require('fs');
 // ─── Constants ────────────────────────────────────────────────────────────────
 const IS_DEV = process.argv.includes('--dev');
 const FRONTEND_URL = IS_DEV ? 'http://localhost:5173' : `file://${path.join(__dirname, '../frontend/dist/index.html')}`;
-const WS_PORT = 8765;
+const WS_PORT = Number(process.env.ARIA_WEBSOCKET_PORT || '8765');
 const SHORTCUT = process.platform === 'darwin' ? 'Command+Shift+Space' : 'Control+Shift+Space';
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -49,7 +49,8 @@ app.on('second-instance', () => {
 function startPythonBackend() {
   if (IS_DEV) {
     console.log('[ARIA] Dev mode: expecting backend to be run externally');
-    backendReady = true; // Assume external dev server is running
+    // Poll until backend is actually responding
+    pollBackendHealth();
     return;
   }
 
@@ -89,6 +90,51 @@ function startPythonBackend() {
     console.log('[ARIA] Backend exited with code', code);
     backendReady = false;
   });
+
+  // Poll until backend is responding
+  pollBackendHealth();
+}
+
+// ─── Backend Health Check ─────────────────────────────────────────────────────
+
+function pollBackendHealth(attempts = 0) {
+  const http = require('http');
+  const maxAttempts = 45; // 45 seconds max wait
+
+  // Initial delay on first attempt to let the OS bind the port
+  if (attempts === 0) {
+    setTimeout(() => pollBackendHealth(1), 2000);
+    return;
+  }
+
+  let retryCalled = false;
+  const doRetry = () => {
+    if (retryCalled) return;
+    retryCalled = true;
+    if (attempts >= maxAttempts) {
+      console.error('[ARIA] Backend failed to start after', maxAttempts, 'seconds');
+      return;
+    }
+    setTimeout(() => pollBackendHealth(attempts + 1), 1000);
+  };
+
+  const req = http.get(`http://127.0.0.1:${WS_PORT}/ping`, (res) => {
+    if (res.statusCode === 200) {
+      backendReady = true;
+      console.log('[ARIA] Backend health check passed');
+    } else {
+      doRetry();
+    }
+  });
+
+  req.on('error', () => {
+    doRetry();
+  });
+
+  req.setTimeout(1500, () => {
+    req.destroy();
+    // destroy() triggers 'error' and thus doRetry()
+  });
 }
 
 // ─── Overlay Window ───────────────────────────────────────────────────────────
@@ -124,8 +170,23 @@ function createOverlayWindow() {
   overlayWindow.loadURL(overlayUrl);
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
 
-  // Hide when loses focus
+  // Wait for page to load before allowing show
+  overlayWindow.webContents.on('did-finish-load', () => {
+    console.log('[ARIA] Overlay window loaded and ready');
+  });
+
+  overlayWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('[ARIA] Overlay failed to load:', errorCode, errorDescription);
+  });
+
+  // Hide when loses focus — debounced to avoid race with global shortcut on Windows
+  let overlayJustShown = false;
+  overlayWindow._setJustShown = () => {
+    overlayJustShown = true;
+    setTimeout(() => { overlayJustShown = false; }, 300);
+  };
   overlayWindow.on('blur', () => {
+    if (overlayJustShown) return;
     overlayWindow.hide();
   });
 
@@ -133,9 +194,10 @@ function createOverlayWindow() {
     overlayWindow = null;
   });
 
-  if (IS_DEV) {
-    overlayWindow.webContents.openDevTools({ mode: 'detach' });
-  }
+  // Don't open dev tools by default - causes issues
+  // if (IS_DEV) {
+  //   overlayWindow.webContents.openDevTools({ mode: 'detach' });
+  // }
 }
 
 // ─── Sidebar Window ───────────────────────────────────────────────────────────
@@ -220,13 +282,22 @@ function createTray() {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function toggleOverlay() {
-  if (!overlayWindow) return;
+  if (!overlayWindow) {
+    console.error('[ARIA] Overlay window not created!');
+    return;
+  }
+  
+  console.log('[ARIA] Toggle overlay - currently visible:', overlayWindow.isVisible());
+  
   if (overlayWindow.isVisible()) {
     overlayWindow.hide();
+    console.log('[ARIA] Overlay hidden');
   } else {
+    overlayWindow._setJustShown();
     overlayWindow.show();
     overlayWindow.focus();
     overlayWindow.webContents.send('overlay-focus');
+    console.log('[ARIA] Overlay shown and focused');
   }
 }
 
@@ -258,6 +329,11 @@ function showSidebar() {
 function setupIPC() {
   // Overlay → submit task → hide overlay → show sidebar
   ipcMain.on('task-submitted', (event, description) => {
+    // Filter out dismiss signals — they are not real tasks
+    if (!description || description === '__dismiss__') {
+      if (overlayWindow) overlayWindow.hide();
+      return;
+    }
     console.log('[ARIA] Task submitted from overlay:', description);
     if (description === '__dismiss__') {
       if (overlayWindow) overlayWindow.hide();
