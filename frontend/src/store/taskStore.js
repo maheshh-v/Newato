@@ -40,7 +40,7 @@ const useTaskStore = create((set, get) => ({
   expandedTaskId: null,
 
   /** @type {boolean} Whether sidebar is visible */
-  sidebarVisible: false,
+  sidebarVisible: true,
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -128,6 +128,19 @@ const useTaskStore = create((set, get) => ({
   setExpandedTaskId: (id) => set({ expandedTaskId: id }),
 
   setSidebarVisible: (visible) => set({ sidebarVisible: visible }),
+
+  /** Replace entire task list (used on initial load). */
+  setTasks: (taskList) => set({
+    tasks: taskList.map((t) => ({
+      steps: [],
+      progress: 0,
+      current_step_text: null,
+      latest_screenshot: null,
+      output_files: [],
+      ...t,
+    })),
+    sidebarVisible: taskList.length > 0, // Show sidebar if tasks exist
+  }),
 }));
 
 export default useTaskStore;

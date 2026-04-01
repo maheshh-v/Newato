@@ -13,8 +13,9 @@ export function useWebSocket() {
   const reconnectTimeoutRef = useRef(null);
   const reconnectDelayRef = useRef(1000);
   const mountedRef = useRef(true);
+  const taskQueueRef = useRef([]); // Queue tasks if WS isn't ready
 
-  const { upsertTask, addStep, setScreenshot, completeTask, failTask, setSidebarVisible } = useTaskStore();
+  const { upsertTask, addStep, setScreenshot, completeTask, failTask, setSidebarVisible, setTasks } = useTaskStore();
 
   const handleMessage = useCallback((event) => {
     let msg;
@@ -26,10 +27,13 @@ export function useWebSocket() {
 
     if (!msg.event_type) return; // ping or unknown
 
+    console.log('[ARIA WS] Message received:', msg.event_type, msg.task_id);
+
     const { task_id, event_type, data } = msg;
 
     switch (event_type) {
       case 'task_created':
+        console.log('[ARIA WS] Task created:', task_id);
         upsertTask({
           id: task_id,
           description: data.description,
@@ -41,6 +45,7 @@ export function useWebSocket() {
         break;
 
       case 'task_started':
+        console.log('[ARIA WS] Task started:', task_id);
         upsertTask({ id: task_id, status: 'running', ...data });
         break;
 
@@ -60,17 +65,19 @@ export function useWebSocket() {
         break;
 
       case 'task_completed':
+        console.log('[ARIA WS] Task completed:', task_id);
         completeTask(task_id, data);
         break;
 
       case 'task_failed':
+        console.log('[ARIA WS] Task failed:', task_id);
         failTask(task_id, data);
         break;
 
       default:
         break;
     }
-  }, [upsertTask, addStep, setScreenshot, completeTask, failTask, setSidebarVisible]);
+  }, [upsertTask, addStep, setScreenshot, completeTask, failTask, setSidebarVisible, setTasks]);
 
   const connect = useCallback(() => {
     if (!mountedRef.current) return;
@@ -78,9 +85,25 @@ export function useWebSocket() {
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
-    ws.onopen = () => {
+    ws.onopen = async () => {
       console.log('[ARIA WS] Connected');
       reconnectDelayRef.current = 1000; // Reset backoff
+      
+      // Fetch initial tasks on first connection
+      try {
+        const resp = await fetch('http://127.0.0.1:8765/tasks');
+        const tasks = await resp.json();
+        setTasks(tasks);
+      } catch (err) {
+        console.warn('[ARIA WS] Failed to fetch initial tasks:', err);
+      }
+
+      // Flush any queued tasks
+      while (taskQueueRef.current.length > 0) {
+        const queuedTask = taskQueueRef.current.shift();
+        console.log('[ARIA WS] Flushing queued task:', queuedTask.description);
+        ws.send(JSON.stringify(queuedTask));
+      }
     };
 
     ws.onmessage = handleMessage;
@@ -102,8 +125,15 @@ export function useWebSocket() {
 
   /** Send a task submission message over the WebSocket. */
   const submitTask = useCallback((description) => {
+    const msg = JSON.stringify({ type: 'submit_task', description });
+    console.log('[ARIA] Submitting task:', description);
+    
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'submit_task', description }));
+      console.log('[ARIA WS] Sending task immediately');
+      wsRef.current.send(msg);
+    } else {
+      console.log('[ARIA WS] WebSocket not ready, queuing task');
+      taskQueueRef.current.push({ type: 'submit_task', description });
     }
   }, []);
 

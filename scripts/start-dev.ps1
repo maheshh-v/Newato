@@ -1,7 +1,7 @@
 # ARIA Dev Start Script (Windows PowerShell)
 # Starts the Python backend + React dev server + Electron simultaneously.
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $Root = Split-Path $PSScriptRoot -Parent
 $BackendDir = Join-Path $Root "backend"
 $FrontendDir = Join-Path $Root "frontend"
@@ -19,21 +19,29 @@ if (Test-Path $EnvSrc) {
 $PythonBin = Join-Path $BackendDir "venv\Scripts\python.exe"
 if (-not (Test-Path $PythonBin)) {
     Write-Error "Python venv not found. Run .\scripts\setup.ps1 first."
+    exit 1
 }
 
 Write-Host "Starting ARIA backend (port 8765)..." -ForegroundColor Yellow
 $BackendJob = Start-Job -ScriptBlock {
     param($dir, $python)
     Set-Location $dir
-    & $python -m uvicorn main:app --host 127.0.0.1 --port 8765 --reload
+    try {
+        & $python -m uvicorn main:app --host 127.0.0.1 --port 8765 --reload
+    } catch {
+        Write-Error "Backend failed: $_"
+    }
 } -ArgumentList $BackendDir, $PythonBin
 
 Write-Host "Starting React dev server (port 5173)..." -ForegroundColor Yellow
 $FrontendJob = Start-Job -ScriptBlock {
     param($dir)
     Set-Location $dir
-    npm run dev
-    
+    try {
+        npm run dev
+    } catch {
+        Write-Error "Frontend failed: $_"
+    }
 } -ArgumentList $FrontendDir
 
 Write-Host "Waiting for servers to start..." -ForegroundColor Yellow
@@ -43,6 +51,14 @@ Write-Host "Starting Electron..." -ForegroundColor Yellow
 Set-Location $ElectronDir
 $env:ELECTRON_DEV = "true"
 npx electron . --dev
+
+Write-Host "Electron closed. Backend and frontend are still running." -ForegroundColor Yellow
+Write-Host "Press Ctrl+C to stop all services." -ForegroundColor Yellow
+
+# Keep the script running so backend/frontend stay alive
+while ($true) {
+    Start-Sleep -Seconds 2
+}
 
 # Cleanup on exit
 Write-Host "Shutting down..." -ForegroundColor Yellow

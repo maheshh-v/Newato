@@ -1,0 +1,17 @@
+{
+  "location": "Delhi, India",
+  "temperature_c": "24",
+  "temperature_f": "76",
+  "feels_like_c": "25",
+  "feels_like_f": "77",
+  "weather_desc": "Haze",
+  "humidity": "54",
+  "wind_speed_kmh": "8",
+  "wind_direction": "N",
+  "precipitation_mm": "0.0",
+  "visibility_km": "5",
+  "pressure_mb": "1009",
+  "cloud_cover": "25",
+  "observation_time": "10:29 PM",
+  "timestamp": "2026-04-02T04:14:39.115278"
+}
