@@ -1,0 +1,13 @@
+{
+  "name": "newato",
+  "version": "1.0.0",
+  "description": "ARIA - Autonomous Robot Interface Assistant",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "ELECTRON_DEV=1 electron . --dev",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^41.0.0"
+  }
+}

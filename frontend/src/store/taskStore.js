@@ -40,7 +40,7 @@ const useTaskStore = create((set, get) => ({
   expandedTaskId: null,
 
   /** @type {boolean} Whether sidebar is visible */
-  sidebarVisible: false,
+  sidebarVisible: true,
 
   /** @type {string|null} Backend output directory path */
   outputDir: null,
@@ -132,7 +132,18 @@ const useTaskStore = create((set, get) => ({
 
   setSidebarVisible: (visible) => set({ sidebarVisible: visible }),
 
-  setOutputDir: (dir) => set({ outputDir: dir }),
+  /** Replace entire task list (used on initial load). */
+  setTasks: (taskList) => set({
+    tasks: taskList.map((t) => ({
+      steps: [],
+      progress: 0,
+      current_step_text: null,
+      latest_screenshot: null,
+      output_files: [],
+      ...t,
+    })),
+    sidebarVisible: taskList.length > 0, // Show sidebar if tasks exist
+  }),
 }));
 
 export default useTaskStore;

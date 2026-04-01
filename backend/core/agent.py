@@ -8,6 +8,8 @@ import time
 from typing import Any, Optional
 
 import anthropic
+import groq
+from openai import AsyncOpenAI
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
 from config import settings
@@ -98,10 +100,20 @@ async def run_agent(task: Task) -> None:
 
     if settings.LLM_PROVIDER == "anthropic":
         client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    elif settings.LLM_PROVIDER == "groq":
-        # Lazy import so missing groq package doesn't crash backend startup.
-        import groq
-        client = groq.AsyncGroq(api_key=settings.GROQ_API_KEY)
+    elif settings.LLM_PROVIDER in ("groq", "deepseek", "openai"):
+        if settings.LLM_PROVIDER == "groq":
+            client = groq.AsyncGroq(api_key=settings.GROQ_API_KEY)
+        elif settings.LLM_PROVIDER == "deepseek":
+            # DeepSeek is OpenAI-compatible. Set timeout to 60s for initial connection + request
+            from httpx import Timeout
+            timeout = Timeout(timeout=60.0, connect=30.0, read=60.0)
+            client = AsyncOpenAI(
+                api_key=settings.DEEPSEEK_API_KEY, 
+                base_url="https://api.deepseek.com/v1",
+                timeout=timeout
+            )
+        elif settings.LLM_PROVIDER == "openai":
+            client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
     else:
         raise ValueError(f"Unknown LLM provider: {settings.LLM_PROVIDER}")
 
@@ -244,7 +256,7 @@ async def run_agent(task: Task) -> None:
                 for b in tool_calls_raw:
                     tool_calls.append({"id": b.id, "name": b.name, "input": b.input})
                     
-            elif settings.LLM_PROVIDER == "groq":
+            elif settings.LLM_PROVIDER in ("groq", "deepseek", "openai"):
                 if not groq_messages:
                     groq_messages.append({"role": "system", "content": system})
                 else:
@@ -252,23 +264,14 @@ async def run_agent(task: Task) -> None:
                 
                 try:
                     response = await client.chat.completions.create(
-                        model=settings.GROQ_MODEL,
+                        model=settings.LLM_MODEL,
                         messages=groq_messages,
                         tools=GROQ_TOOLS,
                         tool_choice="auto",
                     )
                 except Exception as e:
-                    error_msg = str(e)
-                    # Try to extract more detail from Groq's failed generation if available
-                    if hasattr(e, "body") and isinstance(e.body, dict):
-                        failed_gen = e.body.get("error", {}).get("failed_generation")
-                        if failed_gen:
-                            print(f"\n[GROQ DEBUG] FAILED GENERATION: {failed_gen}\n")
-                            logger.error("Groq Tool Failure Detail", detail=failed_gen, task_id=task_id)
-                            error_msg += f" | Details: {failed_gen}"
-
-                    logger.error("Groq API error", task_id=task_id, error=error_msg)
-                    await _finalize_failure(task_id, db, f"API error: {error_msg[:250]}", "Groq API call")
+                    logger.error(f"{settings.LLM_PROVIDER.capitalize()} API error", task_id=task_id, error=str(e), exc_info=True)
+                    await _finalize_failure(task_id, db, f"API error: {str(e)[:200]}", f"{settings.LLM_PROVIDER} API call")
                     return
                 
                 msg = response.choices[0].message
@@ -396,11 +399,10 @@ async def run_agent(task: Task) -> None:
                         "tool_use_id": tool_call["id"],
                         "content": result_text,
                     })
-                elif settings.LLM_PROVIDER == "groq":
+                elif settings.LLM_PROVIDER in ("groq", "deepseek", "openai"):
                     groq_messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call["id"],
-                        "name": tool_name,
                         "content": result_text,
                     })
 
