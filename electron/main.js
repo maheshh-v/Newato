@@ -12,7 +12,7 @@ const fs = require('fs');
 // ─── Constants ────────────────────────────────────────────────────────────────
 const IS_DEV = process.argv.includes('--dev');
 const FRONTEND_URL = IS_DEV ? 'http://localhost:5173' : `file://${path.join(__dirname, '../frontend/dist/index.html')}`;
-const WS_PORT = 8765;
+const WS_PORT = 8766;
 const SHORTCUT = process.platform === 'darwin' ? 'Command+Shift+Space' : 'Control+Shift+Space';
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -148,8 +148,23 @@ function createOverlayWindow() {
   overlayWindow.loadURL(overlayUrl);
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
 
-  // Hide when loses focus
+  // Wait for page to load before allowing show
+  overlayWindow.webContents.on('did-finish-load', () => {
+    console.log('[ARIA] Overlay window loaded and ready');
+  });
+
+  overlayWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('[ARIA] Overlay failed to load:', errorCode, errorDescription);
+  });
+
+  // Hide when loses focus — debounced to avoid race with global shortcut on Windows
+  let overlayJustShown = false;
+  overlayWindow._setJustShown = () => {
+    overlayJustShown = true;
+    setTimeout(() => { overlayJustShown = false; }, 300);
+  };
   overlayWindow.on('blur', () => {
+    if (overlayJustShown) return;
     overlayWindow.hide();
   });
 
@@ -157,9 +172,10 @@ function createOverlayWindow() {
     overlayWindow = null;
   });
 
-  if (IS_DEV) {
-    overlayWindow.webContents.openDevTools({ mode: 'detach' });
-  }
+  // Don't open dev tools by default - causes issues
+  // if (IS_DEV) {
+  //   overlayWindow.webContents.openDevTools({ mode: 'detach' });
+  // }
 }
 
 // ─── Sidebar Window ───────────────────────────────────────────────────────────
@@ -239,13 +255,22 @@ function createTray() {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function toggleOverlay() {
-  if (!overlayWindow) return;
+  if (!overlayWindow) {
+    console.error('[ARIA] Overlay window not created!');
+    return;
+  }
+  
+  console.log('[ARIA] Toggle overlay - currently visible:', overlayWindow.isVisible());
+  
   if (overlayWindow.isVisible()) {
     overlayWindow.hide();
+    console.log('[ARIA] Overlay hidden');
   } else {
+    overlayWindow._setJustShown();
     overlayWindow.show();
     overlayWindow.focus();
     overlayWindow.webContents.send('overlay-focus');
+    console.log('[ARIA] Overlay shown and focused');
   }
 }
 
