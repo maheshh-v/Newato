@@ -66,6 +66,25 @@ export default function Overlay({ onSubmit }) {
   return (
     <div className={`overlay-container ${isFadingOut ? 'fade-out' : 'fade-in'}`}>
       <div className="overlay-window">
+        <div className="overlay-window-controls">
+          <button
+            className="overlay-window-btn overlay-window-btn-minimize"
+            title="Minimize"
+            onClick={() => window.aria?.windowAction?.('minimize')}
+            aria-label="Minimize window"
+          >
+            -
+          </button>
+          <button
+            className="overlay-window-btn overlay-window-btn-close"
+            title="Close"
+            onClick={() => window.aria?.windowAction?.('close')}
+            aria-label="Close window"
+          >
+            ×
+          </button>
+        </div>
+
         {/* Input row */}
         <div className="overlay-input-row">
           <div className="overlay-icon">

@@ -57,6 +57,7 @@ $FrontendJob = Start-Job -ScriptBlock {
     $ErrorActionPreference = "Continue"
     Set-Location $dir
     npm run dev
+    
 } -ArgumentList $FrontendDir
 
 # --- Wait for Ping ---

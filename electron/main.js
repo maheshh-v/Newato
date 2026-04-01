@@ -22,6 +22,28 @@ let tray = null;
 let pythonProcess = null;
 let backendReady = false;
 
+// Prevent multiple Electron instances in dev/prod. Multiple instances can
+// cause inconsistent window behavior (e.g., old overlay size appearing again).
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
+
+app.on('second-instance', () => {
+  if (sidebarWindow) {
+    if (sidebarWindow.isMinimized()) sidebarWindow.restore();
+    sidebarWindow.show();
+    sidebarWindow.focus();
+    return;
+  }
+
+  if (overlayWindow) {
+    overlayWindow.show();
+    overlayWindow.focus();
+    overlayWindow.webContents.send('overlay-focus');
+  }
+});
+
 // ─── Python Backend ───────────────────────────────────────────────────────────
 
 function startPythonBackend() {
@@ -123,9 +145,9 @@ function createOverlayWindow() {
   const { width, height } = display.bounds;
 
   overlayWindow = new BrowserWindow({
-    width: 580,
-    height: 56,
-    x: Math.round(width / 2 - 290),
+    width: 760,
+    height: 96,
+    x: Math.round(width / 2 - 380),
     y: Math.round(height * 0.4),
     frame: false,
     transparent: true,
@@ -193,9 +215,9 @@ function createSidebarWindow() {
     frame: false,
     transparent: false,
     alwaysOnTop: true,
-    skipTaskbar: true,
+    skipTaskbar: false,
     resizable: false,
-    show: false,
+    show: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -210,6 +232,11 @@ function createSidebarWindow() {
 
   sidebarWindow.loadURL(sidebarUrl);
   sidebarWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
+
+  // Start minimized so ARIA appears in taskbar without being intrusive on launch.
+  sidebarWindow.once('ready-to-show', () => {
+    sidebarWindow.minimize();
+  });
 
   sidebarWindow.on('closed', () => {
     sidebarWindow = null;
@@ -276,17 +303,25 @@ function toggleOverlay() {
 
 function toggleSidebar() {
   if (!sidebarWindow) return;
-  if (sidebarWindow.isVisible()) {
-    sidebarWindow.hide();
+  if (sidebarWindow.isMinimized()) {
+    sidebarWindow.restore();
+    sidebarWindow.focus();
+  } else if (sidebarWindow.isVisible()) {
+    sidebarWindow.minimize();
   } else {
     sidebarWindow.show();
+    sidebarWindow.focus();
   }
 }
 
 function showSidebar() {
-  if (sidebarWindow && !sidebarWindow.isVisible()) {
+  if (!sidebarWindow) return;
+  if (sidebarWindow.isMinimized()) {
+    sidebarWindow.restore();
+  } else if (!sidebarWindow.isVisible()) {
     sidebarWindow.show();
   }
+  sidebarWindow.focus();
 }
 
 // ─── IPC Handlers ─────────────────────────────────────────────────────────────
@@ -300,6 +335,10 @@ function setupIPC() {
       return;
     }
     console.log('[ARIA] Task submitted from overlay:', description);
+    if (description === '__dismiss__') {
+      if (overlayWindow) overlayWindow.hide();
+      return;
+    }
     if (overlayWindow) overlayWindow.hide();
     showSidebar();
     // Forward to sidebar so it knows a task was submitted
@@ -308,16 +347,50 @@ function setupIPC() {
     }
   });
 
-  // Overlay resize (for suggestions panel)
-  ipcMain.on('overlay-resize', (event, height) => {
-    if (overlayWindow) {
-      overlayWindow.setSize(580, Math.max(56, height));
-    }
-  });
+  // Overlay resize disabled — overlay window size is fixed at 760x96
+  // This prevents stale processes or runtime events from shrinking the prompt.
+  // ipcMain.on('overlay-resize', (event, height) => {
+  //   if (overlayWindow) {
+  //     overlayWindow.setSize(760, Math.max(96, height));
+  //   }
+  // });
 
   // Open file externally
   ipcMain.on('open-file', (event, filePath) => {
     shell.openPath(filePath);
+  });
+
+  // Window controls for frameless renderer windows
+  ipcMain.on('window-action', (event, action) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+
+    if (action === 'minimize') {
+      if (win === overlayWindow) {
+        win.hide();
+      } else if (win === sidebarWindow) {
+        sidebarWindow.minimize();
+      } else if (win.isMinimizable()) {
+        win.minimize();
+      } else {
+        win.hide();
+      }
+      return;
+    }
+
+    if (action === 'close') {
+      // Close should hide/minimize the current window
+      if (win === overlayWindow) {
+        // Overlay: just hide it
+        overlayWindow.hide();
+      } else if (win === sidebarWindow) {
+        // Sidebar: minimize to taskbar (not fully close the app)
+        sidebarWindow.minimize();
+      } else {
+        win.hide();
+      }
+      return;
+    }
   });
 
   // Sidebar requests backend status
@@ -326,9 +399,10 @@ function setupIPC() {
 
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
-app.whenReady().then(async () => {
-  // Start Python backend (non-blocking)
-  startPythonBackend();
+if (gotSingleInstanceLock) {
+  app.whenReady().then(async () => {
+    // Start Python backend (non-blocking)
+    startPythonBackend();
 
   // Create windows
   createOverlayWindow();
@@ -354,8 +428,9 @@ app.whenReady().then(async () => {
   // Show sidebar initially (will slide in on first task)
   // Not shown immediately — appears when first task is submitted
 
-  console.log('[ARIA] App ready. Press', SHORTCUT, 'to open overlay.');
-});
+    console.log('[ARIA] App ready. Press', SHORTCUT, 'to open overlay.');
+  });
+}
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();

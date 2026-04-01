@@ -19,7 +19,7 @@
 }
 
 .overlay-window {
-  width: 580px;
+  width: min(760px, calc(100vw - 24px));
   background: rgba(17, 17, 19, 0.94);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -29,14 +29,54 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+.overlay-window-controls {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+
+.overlay-window-btn {
+  width: 22px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid var(--bg-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.overlay-window-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.overlay-window-btn-minimize {
+  padding-bottom: 2px;
+}
+
+.overlay-window-btn-close:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.35);
 }
 
 .overlay-input-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 14px;
-  height: 56px;
+  padding: 0 84px 0 14px;
+  height: 64px;
 }
 
 .overlay-icon {
