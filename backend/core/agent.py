@@ -8,7 +8,6 @@ import time
 from typing import Any, Optional
 
 import anthropic
-import groq
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
 from config import settings
@@ -100,6 +99,8 @@ async def run_agent(task: Task) -> None:
     if settings.LLM_PROVIDER == "anthropic":
         client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
     elif settings.LLM_PROVIDER == "groq":
+        # Lazy import so missing groq package doesn't crash backend startup.
+        import groq
         client = groq.AsyncGroq(api_key=settings.GROQ_API_KEY)
     else:
         raise ValueError(f"Unknown LLM provider: {settings.LLM_PROVIDER}")
@@ -192,11 +193,18 @@ async def run_agent(task: Task) -> None:
                 return
 
             # Build system prompt with current scratchpad
-            system = _SYSTEM_PROMPT.format(
-                task_description=task.description,
-                task_id=task_id,
-                scratchpad=json.dumps(scratchpad, indent=2) if scratchpad else "{}",
-            )
+            if settings.LLM_PROVIDER == "anthropic":
+                system = _SYSTEM_PROMPT.format(
+                    task_description=task.description,
+                    task_id=task_id,
+                    scratchpad=json.dumps(scratchpad, indent=2) if scratchpad else "{}",
+                )
+            else:
+                # Simpler prompt for Groq
+                system = _GROQ_SYSTEM_PROMPT.format(
+                    task_description=task.description,
+                    scratchpad=json.dumps(scratchpad) if scratchpad else "",
+                )
 
             # Call LLM based on provider
             tool_calls = []
@@ -250,15 +258,28 @@ async def run_agent(task: Task) -> None:
                         tool_choice="auto",
                     )
                 except Exception as e:
-                    logger.error("Groq API error", task_id=task_id, error=str(e))
-                    await _finalize_failure(task_id, db, f"API error: {str(e)[:200]}", "Groq API call")
+                    error_msg = str(e)
+                    # Try to extract more detail from Groq's failed generation if available
+                    if hasattr(e, "body") and isinstance(e.body, dict):
+                        failed_gen = e.body.get("error", {}).get("failed_generation")
+                        if failed_gen:
+                            print(f"\n[GROQ DEBUG] FAILED GENERATION: {failed_gen}\n")
+                            logger.error("Groq Tool Failure Detail", detail=failed_gen, task_id=task_id)
+                            error_msg += f" | Details: {failed_gen}"
+
+                    logger.error("Groq API error", task_id=task_id, error=error_msg)
+                    await _finalize_failure(task_id, db, f"API error: {error_msg[:250]}", "Groq API call")
                     return
                 
                 msg = response.choices[0].message
                 
                 # Append assistant message
-                # Pydantic serialization for the message
-                assistant_msg = {"role": "assistant", "content": msg.content or ""}
+                # Groq/OpenAI compatible formatting: content must be None if there are tool calls
+                content = msg.content
+                if msg.tool_calls and not content:
+                    content = None
+                
+                assistant_msg = {"role": "assistant", "content": content}
                 if msg.tool_calls:
                     assistant_msg["tool_calls"] = []
                     for tc in msg.tool_calls:

@@ -1,0 +1,37 @@
+# ARIA Docker Compose
+# Runs the backend API server with Playwright browser automation
+#
+# Usage:
+#   docker compose up -d          # Start backend
+#   docker compose logs -f        # Watch logs
+#   docker compose down           # Stop
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aria-backend
+    ports:
+      - "8765:8765"
+    env_file:
+      - .env
+    environment:
+      - ARIA_OUTPUT_DIR=/app/outputs
+    volumes:
+      # Persist task outputs and database
+      - aria-outputs:/app/outputs
+      - aria-db:/app/aria.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  aria-outputs:
+    driver: local
+  aria-db:
+    driver: local

@@ -42,6 +42,9 @@ const useTaskStore = create((set, get) => ({
   /** @type {boolean} Whether sidebar is visible */
   sidebarVisible: false,
 
+  /** @type {string|null} Backend output directory path */
+  outputDir: null,
+
   // ── Actions ───────────────────────────────────────────────────────────────
 
   /** Add or update a task (upsert by id). */
@@ -119,9 +122,17 @@ const useTaskStore = create((set, get) => ({
     ),
   })),
 
+  /** Remove a task from the list. */
+  deleteTask: (taskId) => set((state) => ({
+    tasks: state.tasks.filter((t) => t.id !== taskId),
+    expandedTaskId: state.expandedTaskId === taskId ? null : state.expandedTaskId,
+  })),
+
   setExpandedTaskId: (id) => set({ expandedTaskId: id }),
 
   setSidebarVisible: (visible) => set({ sidebarVisible: visible }),
+
+  setOutputDir: (dir) => set({ outputDir: dir }),
 }));
 
 export default useTaskStore;

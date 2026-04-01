@@ -31,7 +31,11 @@ export default function Overlay({ onSubmit }) {
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') {
       setInput('');
-      window.aria?.submitTask('__dismiss__'); // Signal to hide overlay
+      // In Electron, blur hides the overlay automatically (main.js blur handler)
+      // Just clear the input; don't send anything to the backend
+      if (window.aria?.resizeOverlay) {
+        window.aria.resizeOverlay(56); // Reset to default height
+      }
       return;
     }
     if (e.key === 'Enter' && input.trim()) {
@@ -62,6 +66,25 @@ export default function Overlay({ onSubmit }) {
   return (
     <div className={`overlay-container ${isFadingOut ? 'fade-out' : 'fade-in'}`}>
       <div className="overlay-window">
+        <div className="overlay-window-controls">
+          <button
+            className="overlay-window-btn overlay-window-btn-minimize"
+            title="Minimize"
+            onClick={() => window.aria?.windowAction?.('minimize')}
+            aria-label="Minimize window"
+          >
+            -
+          </button>
+          <button
+            className="overlay-window-btn overlay-window-btn-close"
+            title="Close"
+            onClick={() => window.aria?.windowAction?.('close')}
+            aria-label="Close window"
+          >
+            ×
+          </button>
+        </div>
+
         {/* Input row */}
         <div className="overlay-input-row">
           <div className="overlay-icon">

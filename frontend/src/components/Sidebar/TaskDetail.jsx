@@ -2,6 +2,7 @@
  * TaskDetail — expanded view of a task showing step log and screenshot.
  * @param {{ task: import('../../store/taskStore').Task, onClose: () => void }} props
  */
+import useTaskStore from '../../store/taskStore.js';
 import StatusBadge from '../shared/StatusBadge.jsx';
 
 function formatDuration(startMs, endMs) {
@@ -12,9 +13,16 @@ function formatDuration(startMs, endMs) {
 }
 
 export default function TaskDetail({ task, onClose }) {
+  const outputDir = useTaskStore((s) => s.outputDir);
+
   const handleOpenFile = (filename) => {
-    const fullPath = `${window.ARIA_OUTPUT_DIR || ''}/${task.id}/${filename}`;
-    window.aria?.openFile(fullPath) || console.log('Open file:', fullPath);
+    const base = outputDir || '';
+    const fullPath = `${base}/${task.id}/${filename}`;
+    if (window.aria?.openFile) {
+      window.aria.openFile(fullPath);
+    } else {
+      console.log('Open file:', fullPath);
+    }
   };
 
   return (
