@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Python
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Node
+electron/node_modules/
+frontend/node_modules/
+frontend/dist/
+electron/dist/
+
+# Database (built at runtime)
+*.db
+*.db-shm
+*.db-wal
+
+# Environment (secrets)
+.env
+backend/.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs (not needed in image)
+MASTER.md
+README.md
+*.txt
+
+# Scripts (not needed in backend image)
+scripts/

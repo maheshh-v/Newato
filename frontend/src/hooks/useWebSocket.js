@@ -14,7 +14,7 @@ export function useWebSocket() {
   const reconnectDelayRef = useRef(1000);
   const mountedRef = useRef(true);
 
-  const { upsertTask, addStep, setScreenshot, completeTask, failTask, setSidebarVisible } = useTaskStore();
+  const { upsertTask, addStep, setScreenshot, completeTask, failTask, setSidebarVisible, setOutputDir } = useTaskStore();
 
   const handleMessage = useCallback((event) => {
     let msg;
@@ -27,6 +27,12 @@ export function useWebSocket() {
     if (!msg.event_type) return; // ping or unknown
 
     const { task_id, event_type, data } = msg;
+
+    // Handle settings event (no task_id)
+    if (event_type === 'settings') {
+      if (data?.output_dir) setOutputDir(data.output_dir);
+      return;
+    }
 
     switch (event_type) {
       case 'task_created':
@@ -70,7 +76,7 @@ export function useWebSocket() {
       default:
         break;
     }
-  }, [upsertTask, addStep, setScreenshot, completeTask, failTask, setSidebarVisible]);
+  }, [upsertTask, addStep, setScreenshot, completeTask, failTask, setSidebarVisible, setOutputDir]);
 
   const connect = useCallback(() => {
     if (!mountedRef.current) return;

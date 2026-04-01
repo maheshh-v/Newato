@@ -27,7 +27,8 @@ let backendReady = false;
 function startPythonBackend() {
   if (IS_DEV) {
     console.log('[ARIA] Dev mode: expecting backend to be run externally');
-    backendReady = true; // Assume external dev server is running
+    // Poll until backend is actually responding
+    pollBackendHealth();
     return;
   }
 
@@ -66,6 +67,51 @@ function startPythonBackend() {
   pythonProcess.on('exit', (code) => {
     console.log('[ARIA] Backend exited with code', code);
     backendReady = false;
+  });
+
+  // Poll until backend is responding
+  pollBackendHealth();
+}
+
+// ─── Backend Health Check ─────────────────────────────────────────────────────
+
+function pollBackendHealth(attempts = 0) {
+  const http = require('http');
+  const maxAttempts = 45; // 45 seconds max wait
+
+  // Initial delay on first attempt to let the OS bind the port
+  if (attempts === 0) {
+    setTimeout(() => pollBackendHealth(1), 2000);
+    return;
+  }
+
+  let retryCalled = false;
+  const doRetry = () => {
+    if (retryCalled) return;
+    retryCalled = true;
+    if (attempts >= maxAttempts) {
+      console.error('[ARIA] Backend failed to start after', maxAttempts, 'seconds');
+      return;
+    }
+    setTimeout(() => pollBackendHealth(attempts + 1), 1000);
+  };
+
+  const req = http.get(`http://127.0.0.1:${WS_PORT}/ping`, (res) => {
+    if (res.statusCode === 200) {
+      backendReady = true;
+      console.log('[ARIA] Backend health check passed');
+    } else {
+      doRetry();
+    }
+  });
+
+  req.on('error', () => {
+    doRetry();
+  });
+
+  req.setTimeout(1500, () => {
+    req.destroy();
+    // destroy() triggers 'error' and thus doRetry()
   });
 }
 
@@ -223,6 +269,11 @@ function showSidebar() {
 function setupIPC() {
   // Overlay → submit task → hide overlay → show sidebar
   ipcMain.on('task-submitted', (event, description) => {
+    // Filter out dismiss signals — they are not real tasks
+    if (!description || description === '__dismiss__') {
+      if (overlayWindow) overlayWindow.hide();
+      return;
+    }
     console.log('[ARIA] Task submitted from overlay:', description);
     if (overlayWindow) overlayWindow.hide();
     showSidebar();

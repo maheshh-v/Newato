@@ -1,12 +1,13 @@
 """
 ARIA Tool Registry
-Defines all tools available to the agent and sent to the Claude API.
+Defines all tools available to the agent.
+Simplified for Groq/OpenAI compatibility.
 """
 
 TOOL_REGISTRY: list[dict] = [
     {
         "name": "browser_navigate",
-        "description": "Navigate the browser to a URL. Use this to open websites, go to specific pages, or follow links. Always use full URLs including https://",
+        "description": "Navigate the browser to a URL. Always use full URLs including https://",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -17,18 +18,18 @@ TOOL_REGISTRY: list[dict] = [
     },
     {
         "name": "browser_click",
-        "description": "Click an element on the current page. Prefer CSS selectors. If selector fails, try visible text content.",
+        "description": "Click an element on the current page. Prefer CSS selectors.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "selector": {
                     "type": "string",
-                    "description": "CSS selector or visible text of the element to click",
+                    "description": "CSS selector or text content",
                 },
                 "method": {
                     "type": "string",
                     "enum": ["css", "text", "xpath"],
-                    "description": "How to locate the element",
+                    "description": "Selector method (default: css)",
                 },
             },
             "required": ["selector"],
@@ -36,44 +37,39 @@ TOOL_REGISTRY: list[dict] = [
     },
     {
         "name": "browser_type",
-        "description": "Type text into an input field or textarea on the current page.",
+        "description": "Type text into an input field.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "selector": {"type": "string"},
                 "text": {"type": "string"},
-                "clear_first": {
-                    "type": "boolean",
-                    "description": "Clear existing content before typing",
-                    "default": True,
-                },
+                "clear_first": {"type": "boolean"},
             },
             "required": ["selector", "text"],
         },
     },
     {
         "name": "browser_extract",
-        "description": "Extract text content from the current page. Use selector to target specific sections, or leave empty for full page text. Returns cleaned text, not raw HTML.",
+        "description": "Extract text content from the current page.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "selector": {
-                    "type": "string",
-                    "description": "CSS selector to target. Leave empty for full page.",
-                },
-                "extract_links": {
-                    "type": "boolean",
-                    "description": "Also return all links found",
-                    "default": False,
-                },
+                "selector": {"type": "string"},
+                "extract_links": {"type": "boolean"},
             },
             "required": [],
         },
     },
     {
         "name": "browser_screenshot",
-        "description": "Take a screenshot of the current browser page state. Returns base64 image. Use when you need to visually verify what the page looks like.",
-        "input_schema": {"type": "object", "properties": {}, "required": []},
+        "description": "Take a screenshot of the current page.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string"}
+            },
+            "required": [],
+        },
     },
     {
         "name": "browser_scroll",
@@ -82,54 +78,43 @@ TOOL_REGISTRY: list[dict] = [
             "type": "object",
             "properties": {
                 "direction": {"type": "string", "enum": ["up", "down"]},
-                "amount": {
-                    "type": "integer",
-                    "description": "Pixels to scroll",
-                    "default": 500,
-                },
+                "amount": {"type": "integer"},
             },
             "required": ["direction"],
         },
     },
     {
         "name": "browser_wait",
-        "description": "Wait for an element to appear on the page. Use after clicking buttons that trigger loading.",
+        "description": "Wait for an element to appear.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "selector": {"type": "string"},
-                "timeout_ms": {"type": "integer", "default": 5000},
+                "timeout_ms": {"type": "integer"},
             },
             "required": ["selector"],
         },
     },
     {
         "name": "run_python",
-        "description": "Execute a Python code snippet and return its stdout output. Use for data processing, calculations, API calls, or any logic that doesn't require browser interaction.",
+        "description": "Execute a Python code snippet and return its output.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "Valid Python code to execute"}
+                "code": {"type": "string"}
             },
             "required": ["code"],
         },
     },
     {
         "name": "write_file",
-        "description": "Write content to a file. Files are saved to the ARIA output directory. Use for saving results, creating code files, writing reports.",
+        "description": "Write content to a file in the ARIA output directory.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "filename": {
-                    "type": "string",
-                    "description": "Filename with extension. Do not include path.",
-                },
+                "filename": {"type": "string"},
                 "content": {"type": "string"},
-                "mode": {
-                    "type": "string",
-                    "enum": ["write", "append"],
-                    "default": "write",
-                },
+                "mode": {"type": "string", "enum": ["write", "append"]},
             },
             "required": ["filename", "content"],
         },
@@ -145,30 +130,26 @@ TOOL_REGISTRY: list[dict] = [
     },
     {
         "name": "update_scratchpad",
-        "description": "Save important information to your working memory for this task. Use to track progress, store intermediate results, remember what you've done.",
+        "description": "Save information to your working memory.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "key": {"type": "string", "description": "Memory key"},
-                "value": {"type": "string", "description": "Value to store"},
+                "key": {"type": "string"},
+                "value": {"type": "string"},
             },
             "required": ["key", "value"],
         },
     },
     {
         "name": "task_complete",
-        "description": "Call this ONLY when the task is fully completed. Provide a clear summary of what was accomplished and what output was produced.",
+        "description": "Call this ONLY when the task is fully completed.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "summary": {
-                    "type": "string",
-                    "description": "What was done and what output was produced",
-                },
+                "summary": {"type": "string"},
                 "output_files": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of files created",
                 },
             },
             "required": ["summary"],
@@ -176,15 +157,12 @@ TOOL_REGISTRY: list[dict] = [
     },
     {
         "name": "task_failed",
-        "description": "Call this if the task cannot be completed after trying multiple approaches. Explain clearly what was attempted and why it failed.",
+        "description": "Call this if the task cannot be completed.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "reason": {"type": "string"},
-                "attempted": {
-                    "type": "string",
-                    "description": "What approaches were tried",
-                },
+                "attempted": {"type": "string"},
             },
             "required": ["reason"],
         },
