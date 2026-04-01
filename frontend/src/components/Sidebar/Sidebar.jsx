@@ -53,6 +53,25 @@ export default function Sidebar() {
           {totalCount > 0 && (
             <span className="sidebar-count">{totalCount}</span>
           )}
+
+          <div className="sidebar-window-actions">
+            <button
+              className="sidebar-window-btn"
+              title="Minimize"
+              aria-label="Minimize window"
+              onClick={() => window.aria?.windowAction?.('minimize')}
+            >
+              -
+            </button>
+            <button
+              className="sidebar-window-btn sidebar-window-btn-close"
+              title="Close"
+              aria-label="Close window"
+              onClick={() => window.aria?.windowAction?.('close')}
+            >
+              ×
+            </button>
+          </div>
         </div>
       </div>
 

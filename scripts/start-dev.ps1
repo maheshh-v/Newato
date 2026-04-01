@@ -33,6 +33,7 @@ $FrontendJob = Start-Job -ScriptBlock {
     param($dir)
     Set-Location $dir
     npm run dev
+    
 } -ArgumentList $FrontendDir
 
 Write-Host "Waiting for servers to start..." -ForegroundColor Yellow

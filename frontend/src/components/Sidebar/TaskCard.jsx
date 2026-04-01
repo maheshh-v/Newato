@@ -5,6 +5,7 @@
  * @param {{ task: import('../../store/taskStore').Task, isExpanded: boolean, onToggle: () => void }} props
  */
 import { useEffect, useState } from 'react';
+import useTaskStore from '../../store/taskStore.js';
 import StatusBadge from '../shared/StatusBadge.jsx';
 import ProgressBar from '../shared/ProgressBar.jsx';
 import TaskDetail from './TaskDetail.jsx';
@@ -32,6 +33,14 @@ export default function TaskCard({ task, isExpanded, onToggle }) {
   const isRunning = task.status === 'running';
   const elapsed = useElapsedTime(task.started_at, isRunning);
   const borderClass = STATUS_BORDER[task.status] || STATUS_BORDER.queued;
+  const deleteTask = useTaskStore((s) => s.deleteTask);
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    if (confirm(`Delete task: "${task.description.slice(0, 50)}..."?`)) {
+      deleteTask(task.id);
+    }
+  };
 
   return (
     <div
@@ -52,7 +61,17 @@ export default function TaskCard({ task, isExpanded, onToggle }) {
       >
         <div className="flex items-center justify-between mb-1.5">
           <StatusBadge status={task.status} />
-          <span className="text-text-muted text-[10px] font-mono">{elapsed}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-text-muted text-[10px] font-mono">{elapsed}</span>
+            <button
+              className="task-card-delete-btn"
+              onClick={handleDelete}
+              title="Delete task"
+              aria-label="Delete task"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         <p className="task-description text-text-primary text-xs font-medium leading-snug line-clamp-2">

@@ -16,11 +16,11 @@ contextBridge.exposeInMainWorld('aria', {
   },
 
   /**
-   * Request overlay resize (e.g., when showing suggestions).
-   * @param {number} height
+   * Control current window (minimize/close) from renderer.
+   * @param {'minimize'|'close'} action
    */
-  resizeOverlay: (height) => {
-    ipcRenderer.send('overlay-resize', height);
+  windowAction: (action) => {
+    ipcRenderer.send('window-action', action);
   },
 
   /**

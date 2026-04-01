@@ -119,6 +119,12 @@ const useTaskStore = create((set, get) => ({
     ),
   })),
 
+  /** Remove a task from the list. */
+  deleteTask: (taskId) => set((state) => ({
+    tasks: state.tasks.filter((t) => t.id !== taskId),
+    expandedTaskId: state.expandedTaskId === taskId ? null : state.expandedTaskId,
+  })),
+
   setExpandedTaskId: (id) => set({ expandedTaskId: id }),
 
   setSidebarVisible: (visible) => set({ sidebarVisible: visible }),
