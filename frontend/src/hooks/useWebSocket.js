@@ -31,6 +31,12 @@ export function useWebSocket() {
 
     const { task_id, event_type, data } = msg;
 
+    // Handle settings event (no task_id)
+    if (event_type === 'settings') {
+      if (data?.output_dir) setOutputDir(data.output_dir);
+      return;
+    }
+
     switch (event_type) {
       case 'task_created':
         console.log('[ARIA WS] Task created:', task_id);

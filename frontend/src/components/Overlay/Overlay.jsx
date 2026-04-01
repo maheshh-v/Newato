@@ -31,7 +31,11 @@ export default function Overlay({ onSubmit }) {
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') {
       setInput('');
-      window.aria?.windowAction?.('close');
+      // In Electron, blur hides the overlay automatically (main.js blur handler)
+      // Just clear the input; don't send anything to the backend
+      if (window.aria?.resizeOverlay) {
+        window.aria.resizeOverlay(56); // Reset to default height
+      }
       return;
     }
     if (e.key === 'Enter' && input.trim()) {

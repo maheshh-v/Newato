@@ -205,11 +205,18 @@ async def run_agent(task: Task) -> None:
                 return
 
             # Build system prompt with current scratchpad
-            system = _SYSTEM_PROMPT.format(
-                task_description=task.description,
-                task_id=task_id,
-                scratchpad=json.dumps(scratchpad, indent=2) if scratchpad else "{}",
-            )
+            if settings.LLM_PROVIDER == "anthropic":
+                system = _SYSTEM_PROMPT.format(
+                    task_description=task.description,
+                    task_id=task_id,
+                    scratchpad=json.dumps(scratchpad, indent=2) if scratchpad else "{}",
+                )
+            else:
+                # Simpler prompt for Groq
+                system = _GROQ_SYSTEM_PROMPT.format(
+                    task_description=task.description,
+                    scratchpad=json.dumps(scratchpad) if scratchpad else "",
+                )
 
             # Call LLM based on provider
             tool_calls = []
@@ -270,8 +277,12 @@ async def run_agent(task: Task) -> None:
                 msg = response.choices[0].message
                 
                 # Append assistant message
-                # Pydantic serialization for the message
-                assistant_msg = {"role": "assistant", "content": msg.content or ""}
+                # Groq/OpenAI compatible formatting: content must be None if there are tool calls
+                content = msg.content
+                if msg.tool_calls and not content:
+                    content = None
+                
+                assistant_msg = {"role": "assistant", "content": content}
                 if msg.tool_calls:
                     assistant_msg["tool_calls"] = []
                     for tc in msg.tool_calls:

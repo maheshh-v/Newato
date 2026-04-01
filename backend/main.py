@@ -98,6 +98,19 @@ async def cancel_task(task_id: str) -> dict:
 
 @app.get("/health")
 async def health() -> dict:
+    """Check backend health including DB."""
+    try:
+        db = await get_db()
+        await db.execute("SELECT 1")
+        return {"status": "ok", "db": "connected"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/ping")
+async def ping() -> dict:
+    """Fast, DB-less ping for initial startup detection."""
+    return {"status": "pong"}
     """Health check endpoint."""
     return {
         "status": "ok",
@@ -116,8 +129,17 @@ async def websocket_endpoint(ws: WebSocket) -> None:
     """
     await broadcaster.connect(ws)
     try:
-        # Send current task list on connect so UI can hydrate
         db = await get_db()
+
+        # 1) Send backend settings so frontend knows the output dir
+        await ws.send_json({
+            "event_type": "settings",
+            "data": {
+                "output_dir": str(settings.ARIA_OUTPUT_DIR),
+            },
+        })
+
+        # 2) Hydrate: send all tasks WITH their steps
         tasks = await queries.get_all_tasks(db)
         for task in tasks:
             await ws.send_json({
@@ -126,15 +148,30 @@ async def websocket_endpoint(ws: WebSocket) -> None:
                 "timestamp": task.created_at,
                 "data": task.to_dict(),
             })
+            # Send steps for this task so expanded view works after reconnect
+            steps = await queries.get_steps(db, task.id)
+            for step in steps:
+                await ws.send_json({
+                    "task_id": task.id,
+                    "event_type": "step_update",
+                    "timestamp": step.timestamp,
+                    "data": {
+                        "step_number": step.step_number,
+                        "tool_name": step.tool_name,
+                        "step_text": step.step_text,
+                        "progress": min(step.step_number / settings.MAX_STEPS_PER_TASK, 0.95),
+                    },
+                })
 
-        # Keep connection alive — listen for incoming messages
+        # 3) Keep connection alive — listen for incoming messages
         while True:
             try:
                 msg = await asyncio.wait_for(ws.receive_json(), timeout=30.0)
                 # Handle client → server messages (e.g., submit from overlay)
                 if msg.get("type") == "submit_task":
                     description = msg.get("description", "").strip()
-                    if description:
+                    # Filter out the dismiss signal from the overlay
+                    if description and description != "__dismiss__":
                         await task_manager.submit_task(description)
             except asyncio.TimeoutError:
                 # Send ping to keep connection alive

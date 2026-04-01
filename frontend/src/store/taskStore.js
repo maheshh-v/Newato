@@ -42,6 +42,9 @@ const useTaskStore = create((set, get) => ({
   /** @type {boolean} Whether sidebar is visible */
   sidebarVisible: true,
 
+  /** @type {string|null} Backend output directory path */
+  outputDir: null,
+
   // ── Actions ───────────────────────────────────────────────────────────────
 
   /** Add or update a task (upsert by id). */

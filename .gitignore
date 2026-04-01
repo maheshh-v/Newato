@@ -43,3 +43,4 @@ Thumbs.db
 
 # ARIA outputs (user generated content)
 ~/ARIA/outputs/
+.tmp/ 
