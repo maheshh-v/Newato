@@ -35,10 +35,30 @@ export default function TaskCard({ task, isExpanded, onToggle }) {
   const borderClass = STATUS_BORDER[task.status] || STATUS_BORDER.queued;
   const deleteTask = useTaskStore((s) => s.deleteTask);
 
-  const handleDelete = (e) => {
+  const handleDelete = async (e) => {
     e.stopPropagation();
     if (confirm(`Delete task: "${task.description.slice(0, 50)}..."?`)) {
-      deleteTask(task.id);
+      try {
+        // Call backend DELETE endpoint
+        const response = await fetch(`http://127.0.0.1:8765/tasks/${task.id}`, {
+          method: 'DELETE',
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.deleted) {
+          // Then remove from frontend store
+          deleteTask(task.id);
+          console.log('[Task] Deleted task:', task.id);
+        } else {
+          const errorMsg = data.error || 'Unknown error';
+          console.error('[Task] Failed to delete:', errorMsg);
+          alert(`Failed to delete task: ${errorMsg}`);
+        }
+      } catch (err) {
+        console.error('[Task] Delete error:', err);
+        alert('Error deleting task: ' + err.message);
+      }
     }
   };
 

@@ -23,8 +23,8 @@ foreach ($Port in $Ports) {
         foreach ($Conn in $Connections) {
             $TargetPID = $Conn.OwningProcess
             if ($TargetPID -and $TargetPID -ne $PID) {
-                Write-Host "  OK Killing old process $PID on port $Port" -ForegroundColor DarkGray
-                Stop-Process -Id $PID -Force -ErrorAction SilentlyContinue
+                Write-Host "  OK Killing old process $TargetPID on port $Port" -ForegroundColor DarkGray
+                Stop-Process -Id $TargetPID -Force -ErrorAction SilentlyContinue
             }
         }
     }
@@ -41,8 +41,15 @@ if (Test-Path $EnvSrc) {
 
 $PythonBin = Join-Path $BackendDir "venv\Scripts\python.exe"
 if (-not (Test-Path $PythonBin)) {
-    Write-Error "Python venv not found. Run .\scripts\setup.ps1 first."
-    exit 1
+    # Try system Python if venv doesn't exist
+    $PythonBin = "python"
+    try {
+        & python --version > $null 2>&1
+        Write-Host "  OK Using system Python" -ForegroundColor Green
+    } catch {
+        Write-Error "Neither venv nor system Python found. Please install Python 3.10+"
+        exit 1
+    }
 }
 
 # --- Start Jobs ---
@@ -52,10 +59,19 @@ $BackendJob = Start-Job -ScriptBlock {
     param($dir, $python)
     $ErrorActionPreference = "Continue"
     Set-Location $dir
+    
+    Write-Output "[Backend] Starting with Python: $python"
+    Write-Output "[Backend] Current directory: $(Get-Location)"
+    Write-Output "[Backend] Python version:"
+    & $python --version
+    
     try {
-        & $python -m uvicorn main:app --host 127.0.0.1 --port 8765 --reload
+        # Run without --reload to avoid port binding issues on Windows
+        Write-Output "[Backend] Launching uvicorn..."
+        & $python -m uvicorn main:app --host 127.0.0.1 --port 8765 2>&1
     } catch {
-        Write-Error "Backend failed: $_"
+        Write-Output "[Backend] ERROR: $_"
+        throw $_
     }
 } -ArgumentList $BackendDir, $PythonBin
 
@@ -71,30 +87,63 @@ $FrontendJob = Start-Job -ScriptBlock {
     }
 } -ArgumentList $FrontendDir
 
-# --- Wait for Ping ---
+# --- Wait for Services ---
 Write-Host ""
-Write-Host "Waiting for services to respond..." -ForegroundColor Yellow
+Write-Host "Waiting for backend to start on port 8765..." -ForegroundColor Yellow
 $waited = 0
 $ready = $false
-while ($waited -lt 45) {
+while ($waited -lt 60) {
     Start-Sleep -Seconds 1
     $waited++
+    
+    # Check if port 8765 is listening
     try {
-        # Check /ping (it was added to main.py recently)
-        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:8765/ping" -UseBasicParsing -TimeoutSec 1 -ErrorAction SilentlyContinue
-        if ($resp -and $resp.StatusCode -eq 200) { $ready = $true; break }
-    } catch { }
+        $backendReady = Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue
+        if ($backendReady) {
+            Write-Host "  ✅ Backend listening on port 8765!" -ForegroundColor Green
+            $ready = $true
+            break
+        }
+    } catch {
+        # Port check failed, continue waiting
+    }
+    
+    # Also try HTTP health check
+    try {
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:8765/health" -UseBasicParsing -TimeoutSec 1 -ErrorAction SilentlyContinue
+        if ($resp -and $resp.StatusCode -eq 200) {
+            Write-Host "  ✅ Backend responding to /health!" -ForegroundColor Green
+            $ready = $true
+            break
+        }
+    } catch {
+        # Continue waiting
+    }
 }
 
-if ($ready) {
-    Write-Host "  OK Backend is responding!" -ForegroundColor Green
-} else {
-    Write-Host "  WARN Backend is slow. Continuing to Electron..." -ForegroundColor Yellow
+if (-not $ready) {
+    Write-Host "  ⚠️ Backend startup slow (60s timeout). Checking job status..." -ForegroundColor Yellow
+    $backendJobState = Get-Job -Id $BackendJob.Id | Select-Object -ExpandProperty State
+    Write-Host "  Backend job state: $backendJobState" -ForegroundColor Yellow
+    
+    if ($backendJobState -ne "Running") {
+        Write-Host "  ❌ Backend job failed!" -ForegroundColor Red
+        Write-Host "  Output:" -ForegroundColor Red
+        Get-Job -Id $BackendJob.Id | Receive-Job
+        Write-Error "Backend failed to start. Check output above."
+        exit 1
+    }
+    
+    # Show last few lines of output
+    $output = Get-Job -Id $BackendJob.Id | Receive-Job -Keep
+    if ($output) {
+        Write-Host "  Backend output (last 10 lines):" -ForegroundColor Yellow
+        $output | Select-Object -Last 10 | ForEach-Object { Write-Host "    $_" }
+    }
 }
 
-# --- Start Electron ---
 Write-Host ""
-Write-Host "[3/3] Starting Electron..." -ForegroundColor Yellow
+Write-Host "[3/3] Starting Electron in dev mode..." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  +-------------------------------------------------+" -ForegroundColor Green
 Write-Host "  |  READY! Press Ctrl + Shift + Space to toggle    |" -ForegroundColor Green
@@ -102,21 +151,8 @@ Write-Host "  |  the AI overlay from anywhere.                  |" -ForegroundCo
 Write-Host "  +-------------------------------------------------+" -ForegroundColor Green
 Write-Host ""
 
-Push-Location $ElectronDir
-$env:ELECTRON_DEV = "true"
-
-# Check if node_modules exists in electron directory
-if (-not (Test-Path "node_modules")) {
-    Write-Host "Installing Electron dependencies..." -ForegroundColor Yellow
-    npm install
-}
-
-Write-Host ""
-Write-Host "Launching Electron (Press Ctrl+Shift+Space to toggle overlay)..." -ForegroundColor Yellow
-Write-Host ""
-
-# Start Electron in dev mode
-& npm run dev
+# Run Electron in dev mode (use fullpath since we're in root dir)
+& npx electron $ElectronDir --dev
 
 Write-Host ""
 Write-Host "Electron closed. Backend and frontend are still running." -ForegroundColor Yellow

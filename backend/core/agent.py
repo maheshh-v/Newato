@@ -21,6 +21,7 @@ from db.models import Step, Task
 from tools.registry import TOOL_REGISTRY
 from tools.browser_tools import BROWSER_TOOLS
 from tools.code_tools import CODE_TOOLS
+from tools.screen_tools import SCREEN_TOOLS
 from utils.logger import get_logger
 from utils.sanitizer import truncate_result
 
@@ -60,12 +61,44 @@ TASK ID: {task_id}
 SCRATCHPAD: {scratchpad}"""
 
 _GROQ_SYSTEM_PROMPT = """You are ARIA — an Autonomous Reasoning and Intelligence Agent.
-Your job is to complete tasks autonomously using the tools available to you.
+Your job is to complete tasks by calling tools. DO NOT just think - you MUST call tools to make progress.
 
-TASK: {task_description}
-SCRATCHPAD: {scratchpad}
+CRITICAL: Always start by calling a tool. Do not provide analysis - take action immediately.
 
-Be efficient. Use tools strategically. Save results to files. Track progress."""
+Available tool categories:
+1. screen_* tools - For visible cursor control, opening apps, taking screenshots
+2. browser_* tools - For web automation (if browser is available)
+3. run_python - For code execution
+4. write_file / read_file - For file operations
+5. task_complete - When task is FULLY done
+6. task_failed - If task cannot be completed
+
+TOOL PRIORITY for "{task_description}":
+- If task mentions "search" → Option 1 FIRST: screen_search_human(query, app)
+- If Option 1 fails → Option 2: screen_search_web(query, app)
+- If task mentions "brave", "chrome", "firefox", "edge" and no search query → Use screen_open_app
+- If task mentions "click", "navigate" → Prefer browser_* tools first; use screen_click/screen_type only when explicitly required
+- If task mentions "take screenshot" or "see" → Use take_screenshot
+- If task mentions "code", "python", "execute" → Use run_python
+
+SAFETY RULES (MANDATORY):
+- Never click/type in chats, groups, social media, or messaging UIs unless user explicitly asked.
+- Do not perform random exploratory clicks.
+- If target UI is ambiguous, call task_failed with reason "Ambiguous target UI" instead of guessing.
+- For web search tasks, always try screen_search_human first for visible cursor + typing.
+- Use screen_search_web only as fallback when human mode fails.
+
+SELF-MONITORING RULES (MANDATORY):
+- After each meaningful action, verify whether it moved toward the exact user goal.
+- If an action does not match the user intent, immediately correct course.
+- Never end a task without evidence. Before completion, do one verification step (e.g., screenshot or URL check) and then call task_complete.
+- For small tasks, avoid empty summaries. Include concrete result evidence in task_complete summary.
+
+IMMEDIATE ACTION REQUIRED:
+Task: {task_description}
+Current state: {scratchpad}
+
+Next step: Call a tool NOW. Do not delay. Pick the most relevant tool and execute it."""
 
 
 def _make_step_text(tool_name: str, inputs: dict) -> str:
@@ -78,6 +111,8 @@ def _make_step_text(tool_name: str, inputs: dict) -> str:
         "browser_screenshot": lambda _: "Taking screenshot",
         "browser_scroll": lambda i: f"Scrolling {i.get('direction', 'down')}",
         "browser_wait": lambda i: f"Waiting for '{i.get('selector', '')}'",
+        "screen_search_human": lambda i: f"Searching like human for '{i.get('query', '')}'",
+        "screen_search_web": lambda i: f"Searching web for '{i.get('query', '')}'",
         "run_python": lambda _: "Running Python code",
         "write_file": lambda i: f"Writing file '{i.get('filename', '')}'",
         "read_file": lambda i: f"Reading file '{i.get('filename', '')}'",
@@ -145,6 +180,7 @@ async def run_agent(task: Task) -> None:
     consecutive_failures = 0
     MAX_CONSECUTIVE = 3
     output_files: list[str] = []
+    had_successful_action = False
 
     # Browser context (created lazily for web tasks)
     playwright_ctx = None
@@ -199,6 +235,8 @@ async def run_agent(task: Task) -> None:
             return await BROWSER_TOOLS[tool_name](inputs, tool_context)
         elif tool_name in CODE_TOOLS:
             return await CODE_TOOLS[tool_name](inputs, tool_context)
+        elif tool_name in SCREEN_TOOLS:
+            return await SCREEN_TOOLS[tool_name](inputs, tool_context)
         elif tool_name == "task_complete":
             return {"done": True, "summary": inputs.get("summary", ""), "files": inputs.get("output_files", [])}
         elif tool_name == "task_failed":
@@ -276,9 +314,12 @@ async def run_agent(task: Task) -> None:
             elif settings.LLM_PROVIDER in ("groq", "deepseek", "openai"):
                 if not groq_messages:
                     groq_messages.append({"role": "system", "content": system})
+                    # Add initial user message to start task
+                    groq_messages.append({"role": "user", "content": f"Complete this task immediately by calling a tool: {task.description}"})
                 else:
                     groq_messages[0] = {"role": "system", "content": system}
                 
+                logger.info(f"Calling {settings.LLM_PROVIDER} API", task_id=task_id, model=settings.LLM_MODEL, messages_count=len(groq_messages))
                 try:
                     response = await client.chat.completions.create(
                         model=settings.LLM_MODEL,
@@ -292,6 +333,9 @@ async def run_agent(task: Task) -> None:
                     return
                 
                 msg = response.choices[0].message
+                
+                # Log response for debugging
+                logger.info(f"LLM response received", task_id=task_id, has_tool_calls=bool(msg.tool_calls), content_length=len(msg.content or ""))
                 
                 # Append assistant message
                 # Groq/OpenAI compatible formatting: content must be None if there are tool calls
@@ -314,19 +358,46 @@ async def run_agent(task: Task) -> None:
                 groq_messages.append(assistant_msg)
                 
                 if not msg.tool_calls:
+                    logger.warning(f"No tool calls from {settings.LLM_PROVIDER}", task_id=task_id, finish_reason=response.choices[0].finish_reason)
                     if response.choices[0].finish_reason == "stop":
-                        logger.info("Agent stopped without tool call", task_id=task_id)
-                        await _finalize_failure(task_id, db, "Agent stopped without completing task", "No tool calls")
+                        logger.info("Agent attempted to stop without tool call", task_id=task_id)
+                        if step_number == 0 or not had_successful_action:
+                            await _finalize_failure(
+                                task_id,
+                                db,
+                                "No actionable result was produced",
+                                "Model stopped without successful tool execution",
+                                step_number,
+                            )
+                            return
+
+                        # Force verification + explicit terminal tool call.
+                        groq_messages.append({
+                            "role": "user",
+                            "content": "Do not stop yet. First verify the result (screenshot or URL evidence), then call task_complete with concrete proof. If goal not met, continue acting.",
+                        })
+                        continue
+                    
+                    # Limit retries to avoid infinite loops
+                    if step_number > settings.MAX_STEPS_PER_TASK - 5:
+                        logger.warning("Reached near max steps without tool calls", task_id=task_id)
+                        await _finalize_failure(task_id, db, "Agent reached max steps without completing task", "No tool calls after multiple attempts", step_number)
                         return
+                    
                     groq_messages.append({
                         "role": "user",
-                        "content": "Please continue with the task by calling a tool.",
+                        "content": "You must call a tool to make progress. Choose one of the available tools and call it now.",
                     })
                     continue
                 
                 # Normalize tool_calls
                 for b in msg.tool_calls:
-                    tool_calls.append({"id": b.id, "name": b.function.name, "input": json.loads(b.function.arguments)})
+                    try:
+                        tool_input = json.loads(b.function.arguments) if isinstance(b.function.arguments, str) else b.function.arguments
+                        tool_calls.append({"id": b.id, "name": b.function.name, "input": tool_input})
+                    except json.JSONDecodeError as e:
+                        logger.error("Tool input parsing error", task_id=task_id, arguments=b.function.arguments, error=str(e))
+                        tool_calls.append({"id": b.id, "name": b.function.name, "input": {}})
 
             # Execute all tool calls in the response (usually one)
             tool_results_anthropic = []
@@ -378,6 +449,8 @@ async def run_agent(task: Task) -> None:
                     success = result.get("success", True)  # Default true for browser tools
                     result_text = truncate_result(json.dumps(result, default=str), 1000)
                     consecutive_failures = 0 if success else consecutive_failures + 1
+                    if success and tool_name not in ("update_scratchpad", "read_file"):
+                        had_successful_action = True
                 except Exception as e:
                     logger.error("Tool execution error", task_id=task_id, tool=tool_name, exc_info=True)
                     result = {"success": False, "error": str(e)[:200], "recoverable": True}
@@ -422,6 +495,22 @@ async def run_agent(task: Task) -> None:
                         "tool_call_id": tool_call["id"],
                         "content": result_text,
                     })
+
+                    # Self-monitoring nudge after UI-affecting actions.
+                    if tool_name in {
+                        "screen_search_human",
+                        "screen_search_web",
+                        "screen_open_app",
+                        "screen_click",
+                        "screen_type",
+                        "browser_navigate",
+                        "browser_click",
+                        "browser_type",
+                    }:
+                        groq_messages.append({
+                            "role": "user",
+                            "content": "Self-check: verify this action matched the user intent. If mismatch, correct immediately. If objective is met, call task_complete with concrete evidence.",
+                        })
 
                 # Check consecutive failure limit
                 if consecutive_failures >= MAX_CONSECUTIVE:

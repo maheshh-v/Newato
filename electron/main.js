@@ -194,10 +194,11 @@ function createOverlayWindow() {
     overlayWindow = null;
   });
 
-  // Don't open dev tools by default - causes issues
-  // if (IS_DEV) {
-  //   overlayWindow.webContents.openDevTools({ mode: 'detach' });
-  // }
+  // Open dev tools in dev mode for debugging
+  if (IS_DEV) {
+    overlayWindow.webContents.openDevTools({ mode: 'detach' });
+    console.log('[ARIA] Overlay DevTools opened');
+  }
 }
 
 // ─── Sidebar Window ───────────────────────────────────────────────────────────
@@ -237,6 +238,12 @@ function createSidebarWindow() {
   sidebarWindow.once('ready-to-show', () => {
     sidebarWindow.minimize();
   });
+
+  // Open dev tools in dev mode for debugging
+  if (IS_DEV) {
+    sidebarWindow.webContents.openDevTools({ mode: 'detach' });
+    console.log('[ARIA] Sidebar DevTools opened');
+  }
 
   sidebarWindow.on('closed', () => {
     sidebarWindow = null;
