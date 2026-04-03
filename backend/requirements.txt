@@ -10,3 +10,4 @@ mss==9.0.2
 pyautogui==0.9.54
 pydantic==2.10.4
 groq
+httpx==0.28.1

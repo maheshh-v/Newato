@@ -14,6 +14,9 @@ function formatDuration(startMs, endMs) {
 
 export default function TaskDetail({ task, onClose }) {
   const outputDir = useTaskStore((s) => s.outputDir);
+  const description = typeof task.description === 'string' ? task.description : '';
+  const outputFiles = Array.isArray(task.output_files) ? task.output_files : [];
+  const steps = Array.isArray(task.steps) ? task.steps : [];
 
   const handleOpenFile = (filename) => {
     const base = outputDir || '';
@@ -80,11 +83,11 @@ export default function TaskDetail({ task, onClose }) {
       )}
 
       {/* Output files */}
-      {task.output_files && task.output_files.length > 0 && (
+      {outputFiles.length > 0 && (
         <div className="mb-3">
           <p className="text-muted text-[10px] font-semibold tracking-widest mb-1.5">OUTPUT FILES</p>
           <div className="flex flex-col gap-1">
-            {task.output_files.map((f) => (
+            {outputFiles.map((f) => (
               <button
                 key={f}
                 onClick={() => handleOpenFile(f)}
@@ -107,7 +110,7 @@ export default function TaskDetail({ task, onClose }) {
           STEPS ({task.steps?.length || 0})
         </p>
         <div className="step-log">
-          {(task.steps || []).map((step, i) => (
+          {steps.map((step, i) => (
             <div key={i} className="step-item">
               <span className="step-number">{step.step_number}</span>
               <span className="step-text">{step.step_text}</span>

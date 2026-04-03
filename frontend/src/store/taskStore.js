@@ -4,6 +4,45 @@
  */
 import { create } from 'zustand';
 
+function asString(value, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeTask(taskData = {}) {
+  return {
+    id: asString(taskData.id),
+    description: asString(taskData.description),
+    status: ['queued', 'running', 'completed', 'failed'].includes(taskData.status) ? taskData.status : 'queued',
+    task_type: typeof taskData.task_type === 'string' ? taskData.task_type : null,
+    created_at: typeof taskData.created_at === 'number' ? taskData.created_at : Date.now(),
+    started_at: typeof taskData.started_at === 'number' ? taskData.started_at : null,
+    completed_at: typeof taskData.completed_at === 'number' ? taskData.completed_at : null,
+    summary: typeof taskData.summary === 'string' ? taskData.summary : null,
+    error_reason: typeof taskData.error_reason === 'string' ? taskData.error_reason : null,
+    output_files: asArray(taskData.output_files),
+    step_count: typeof taskData.step_count === 'number' ? taskData.step_count : 0,
+    steps: asArray(taskData.steps),
+    progress: typeof taskData.progress === 'number' ? taskData.progress : 0,
+    current_step_text: typeof taskData.current_step_text === 'string' ? taskData.current_step_text : null,
+    latest_screenshot: typeof taskData.latest_screenshot === 'string' ? taskData.latest_screenshot : null,
+    total_steps_estimate: typeof taskData.total_steps_estimate === 'number' ? taskData.total_steps_estimate : 10,
+  };
+}
+
+function normalizeStep(stepData = {}) {
+  return {
+    step_number: typeof stepData.step_number === 'number' ? stepData.step_number : 0,
+    tool_name: asString(stepData.tool_name),
+    step_text: asString(stepData.step_text),
+    timestamp: typeof stepData.timestamp === 'number' ? stepData.timestamp : Date.now(),
+    progress: typeof stepData.progress === 'number' ? stepData.progress : undefined,
+  };
+}
+
 /**
  * @typedef {Object} Step
  * @property {number} step_number
@@ -49,35 +88,28 @@ const useTaskStore = create((set, get) => ({
 
   /** Add or update a task (upsert by id). */
   upsertTask: (taskData) => set((state) => {
-    const existing = state.tasks.find((t) => t.id === taskData.id);
+    const normalized = normalizeTask(taskData);
+    const existing = state.tasks.find((t) => t.id === normalized.id);
     if (existing) {
       return {
         tasks: state.tasks.map((t) =>
-          t.id === taskData.id ? { ...t, ...taskData } : t
+          t.id === normalized.id ? { ...t, ...normalized, steps: asArray(t.steps) } : t
         ),
       };
     }
-    // New task — prepend
-    const newTask = {
-      steps: [],
-      progress: 0,
-      current_step_text: null,
-      latest_screenshot: null,
-      output_files: [],
-      ...taskData,
-    };
-    return { tasks: [newTask, ...state.tasks] };
+    return { tasks: [normalized, ...state.tasks] };
   }),
 
   /** Append a step to a task and update progress/current step text. */
   addStep: (taskId, stepData) => set((state) => ({
     tasks: state.tasks.map((t) => {
       if (t.id !== taskId) return t;
+      const normalizedStep = normalizeStep(stepData);
       return {
         ...t,
-        steps: [...t.steps, stepData],
-        current_step_text: stepData.step_text || t.current_step_text,
-        progress: stepData.progress ?? t.progress,
+        steps: [...asArray(t.steps), normalizedStep],
+        current_step_text: normalizedStep.step_text || t.current_step_text,
+        progress: normalizedStep.progress ?? t.progress,
         step_count: (t.step_count || 0) + 1,
       };
     }),
@@ -86,7 +118,12 @@ const useTaskStore = create((set, get) => ({
   /** Update screenshot for a task. */
   setScreenshot: (taskId, imageB64) => set((state) => ({
     tasks: state.tasks.map((t) =>
-      t.id === taskId ? { ...t, latest_screenshot: imageB64 } : t
+      t.id === taskId
+        ? {
+            ...t,
+            latest_screenshot: typeof imageB64 === 'string' ? imageB64 : null,
+          }
+        : t
     ),
   })),
 
@@ -144,6 +181,14 @@ const useTaskStore = create((set, get) => ({
     })),
     sidebarVisible: taskList.length > 0, // Show sidebar if tasks exist
   }),
+  /** Clear all tasks and reset sidebar state. */
+  clearAllTasks: () => set({
+    tasks: [],
+    expandedTaskId: null,
+    sidebarVisible: true,
+  }),
+
+  setOutputDir: (dir) => set({ outputDir: dir }),
 }));
 
 export default useTaskStore;

@@ -23,6 +23,11 @@ _API_PATTERNS = [
     r"\b(send|call|fetch|query)\b",
 ]
 
+_SCREEN_PATTERNS = [
+    r"\b(chrome|chrom|desktop|cursor|mouse|keyboard|screen|visible|live|youtube)\b",
+    r"\b(open app|move mouse|show me|real browser|browser window)\b",
+]
+
 
 def classify_task(description: str) -> str:
     """
@@ -40,8 +45,11 @@ def classify_task(description: str) -> str:
     api_score = sum(
         1 for p in _API_PATTERNS if re.search(p, desc_lower)
     )
+    screen_score = sum(
+        1 for p in _SCREEN_PATTERNS if re.search(p, desc_lower)
+    )
 
-    scores = {"web": web_score, "code": code_score, "api": api_score}
+    scores = {"web": web_score, "code": code_score, "api": api_score, "screen": screen_score}
     best = max(scores, key=lambda k: scores[k])
 
     if scores[best] == 0:

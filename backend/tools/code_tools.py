@@ -84,6 +84,7 @@ async def write_file(inputs: dict[str, Any], context: dict) -> dict:
     try:
         file_path.write_text(content, encoding="utf-8") if write_mode == "w" \
             else file_path.open("a", encoding="utf-8").write(content)
+        # Avoid reserved LogRecord keys like "filename".
         logger.info("File written", output_file=filename, task_id=task_id, bytes=len(content))
         return {
             "success": True,

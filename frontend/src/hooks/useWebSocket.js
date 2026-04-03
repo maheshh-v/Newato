@@ -25,17 +25,18 @@ export function useWebSocket() {
       return;
     }
 
-    if (!msg.event_type) return; // ping or unknown
+    try {
+      if (!msg.event_type) return; // ping or unknown
 
     console.log('[ARIA WS] Message received:', msg.event_type, msg.task_id);
 
     const { task_id, event_type, data } = msg;
 
-    // Handle settings event (no task_id)
-    if (event_type === 'settings') {
-      if (data?.output_dir) setOutputDir(data.output_dir);
-      return;
-    }
+      // Handle settings event (no task_id)
+      if (event_type === 'settings') {
+        if (data?.output_dir) setOutputDir(data.output_dir);
+        return;
+      }
 
     switch (event_type) {
       case 'task_created':
@@ -55,20 +56,20 @@ export function useWebSocket() {
         upsertTask({ id: task_id, status: 'running', ...data });
         break;
 
-      case 'step_update':
-        addStep(task_id, {
-          step_number: data.step_number,
-          tool_name: data.tool_name,
-          step_text: data.step_text,
-          timestamp: msg.timestamp,
-          progress: data.progress,
-        });
-        upsertTask({ id: task_id, progress: data.progress, current_step_text: data.step_text });
-        break;
+        case 'step_update':
+          addStep(task_id, {
+            step_number: data?.step_number,
+            tool_name: data?.tool_name,
+            step_text: data?.step_text,
+            timestamp: msg.timestamp,
+            progress: data?.progress,
+          });
+          upsertTask({ id: task_id, progress: data?.progress, current_step_text: data?.step_text });
+          break;
 
-      case 'screenshot_update':
-        setScreenshot(task_id, data.image_b64);
-        break;
+        case 'screenshot_update':
+          setScreenshot(task_id, data?.image_b64);
+          break;
 
       case 'task_completed':
         console.log('[ARIA WS] Task completed:', task_id);
@@ -80,8 +81,11 @@ export function useWebSocket() {
         failTask(task_id, data);
         break;
 
-      default:
-        break;
+        default:
+          break;
+      }
+    } catch (error) {
+      console.error('[ARIA WS] Failed to process message', error, msg);
     }
   }, [upsertTask, addStep, setScreenshot, completeTask, failTask, setSidebarVisible, setTasks]);
 

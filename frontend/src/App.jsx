@@ -6,6 +6,7 @@
 import { useEffect } from 'react';
 import Overlay from './components/Overlay/Overlay.jsx';
 import Sidebar from './components/Sidebar/Sidebar.jsx';
+import ErrorBoundary from './components/shared/ErrorBoundary.jsx';
 import { useWebSocket } from './hooks/useWebSocket.js';
 
 function getWindowType() {
@@ -27,10 +28,12 @@ export default function App() {
   useEffect(() => {
     // In Electron sidebar: listen for task-submitted from IPC
     if (windowType === 'sidebar' && window.aria?.onTaskSubmitted) {
-      window.aria.onTaskSubmitted((description) => {
+      const unsubscribe = window.aria.onTaskSubmitted((description) => {
         submitTask(description);
       });
+      return () => unsubscribe?.();
     }
+    return undefined;
   }, [windowType, submitTask]);
 
   if (windowType === 'overlay') {
@@ -43,8 +46,10 @@ export default function App() {
 
   // Sidebar window
   return (
-    <div style={{ width: '320px', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar />
-    </div>
+    <ErrorBoundary>
+      <div style={{ width: '320px', height: '100vh', overflow: 'hidden' }}>
+        <Sidebar />
+      </div>
+    </ErrorBoundary>
   );
 }

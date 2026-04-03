@@ -29,6 +29,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     if errors:
         for err in errors:
             logger.warning("Config warning", error=err)
+    logger.info(
+        "LLM config",
+        provider=settings.LLM_PROVIDER,
+        model=(
+            settings.CLAUDE_MODEL if settings.LLM_PROVIDER == "anthropic"
+            else settings.GROQ_MODEL if settings.LLM_PROVIDER == "groq"
+            else settings.OPENROUTER_MODEL
+        ),
+    )
     await init_db()
     logger.info("ARIA backend started", port=settings.WEBSOCKET_PORT)
     yield

@@ -96,6 +96,111 @@ TOOL_REGISTRY: list[dict] = [
         },
     },
     {
+        "name": "screen_open_browser",
+        "description": "Open a visible maximized browser window. Use this when the user explicitly asks for Chrome, a live window, or visible browsing. Prefer `url` for direct sites like skillwyn.com; use `query` for search phrases.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "browser": {"type": "string", "description": "Browser name, usually chrome"},
+                "url": {"type": "string", "description": "Optional URL to open"},
+                "query": {"type": "string", "description": "Optional text to type into the browser address bar"},
+                "new_window": {"type": "boolean"},
+                "maximize": {"type": "boolean"},
+                "wait_ms": {"type": "integer"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "screen_move_mouse",
+        "description": "Move the real mouse cursor to screen coordinates.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "integer"},
+                "y": {"type": "integer"},
+                "duration_ms": {"type": "integer"},
+            },
+            "required": ["x", "y"],
+        },
+    },
+    {
+        "name": "screen_click",
+        "description": "Click the real mouse on screen. Use coordinates when you know where to click.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "integer"},
+                "y": {"type": "integer"},
+                "button": {"type": "string", "enum": ["left", "middle", "right"]},
+                "clicks": {"type": "integer"},
+                "interval_ms": {"type": "integer"},
+                "duration_ms": {"type": "integer"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "screen_type",
+        "description": "Type text using the real keyboard into the focused application.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+                "interval_ms": {"type": "integer"},
+                "press_enter": {"type": "boolean"},
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "screen_press",
+        "description": "Press a single keyboard key, optionally multiple times.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "key": {"type": "string"},
+                "presses": {"type": "integer"},
+                "interval_ms": {"type": "integer"},
+            },
+            "required": ["key"],
+        },
+    },
+    {
+        "name": "screen_hotkey",
+        "description": "Press a keyboard shortcut such as Ctrl+L or Alt+Tab.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "keys": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                }
+            },
+            "required": ["keys"],
+        },
+    },
+    {
+        "name": "screen_wait",
+        "description": "Wait briefly between visible desktop actions.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "wait_ms": {"type": "integer"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "take_screenshot",
+        "description": "Capture the current desktop screen as an image preview.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
         "name": "run_python",
         "description": "Execute a Python code snippet and return its output.",
         "input_schema": {

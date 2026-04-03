@@ -71,11 +71,73 @@ A sidebar slides in showing the agent thinking and working in real time — navi
 ---
 
 ## 2. The Big Picture — Vision
+## 5. FULL FILE STRUCTURE WITH EXPLANATIONS
+- **`MASTER.md`**: The single source of truth for the project, tracking vision, architecture, and task status.
+- **`README.md`**: Standard brief overview for git repositories.
+- **`.env`** / **`.env.example`**: Configuration variables, including API keys and ports.
+- **`.gitignore`**: Excludes `node_modules`, `venv`, compiled files, and secrets from version control.
+- **`backend/main.py`**: The FastAPI entry point containing REST endpoints and the WebSocket server for real-time updates.
+- **`backend/config.py`**: Loads environment variables and provides typed, validated settings for the backend.
+- **`backend/requirements.txt`**: Specifies Python dependencies (FastAPI, uvicorn, playwright, anthropic, etc).
+- **`backend/core/agent.py`**: The core ReAct loop that makes Claude think, use tools, and observe results iteratively.
+- **`backend/core/broadcaster.py`**: Manages active WebSocket connections and broadcasts real-time task updates to the UI.
+- **`backend/core/router.py`**: Uses heuristics to classify raw user task descriptions (e.g., "web", "code", "api") for optimized routing.
+- **`backend/core/task_manager.py`**: Orchestrates concurrency with an asyncio semaphore to limit running tasks.
+- **`backend/db/database.py`**: Initializes the SQLite database and provides connection contexts.
+- **`backend/db/models.py`**: Pydantic/dataclass definitions representing Tasks and execution Steps.
+- **`backend/db/queries.py`**: Encapsulates all SQL statements for inserting and retrieving tasks and steps.
+- **`backend/tools/__init__.py`**: Tool package initializer.
+- **`backend/tools/registry.py`**: The central registry defining the JSON schema for every tool available to the LLM.
+- **`backend/tools/browser_tools.py`**: Implements Playwright functions for web navigation, clicking, typing, and extraction.
+- **`backend/tools/code_tools.py`**: Safety-restricted functions for executing Python code strings and writing files.
+- **`backend/tools/screen_tools.py`**: Desktop interaction tools for screenshots, visible browser launch, and real mouse/keyboard control.
+- **`backend/utils/logger.py`**: Custom structured logging configuration for the backend.
+- **`backend/utils/sanitizer.py`**: Utilities to truncate large string outputs (like huge HTML blobs) before saving/sending.
+- **`electron/main.js`**: The main Node process managing Electron windows, system tray, global shortcuts, and launching Python.
+- **`electron/preload.js`**: Context bridge allowing secure IPC communication between the React frontend and Electron main process.
+- **`electron/package.json`**: NPM configuration, scripts, and dependencies for the Electron shell.
+- **`frontend/package.json`**: NPM configuration, scripts, and React/Tailwind/Vite dependencies for the frontend.
+- **`frontend/vite.config.js`**: Configuration for the Vite bundler.
+- **`frontend/tailwind.config.js`**: Tailwind CSS theme and styling configuration.
+- **`frontend/postcss.config.js`**: PostCSS plugins configuration used by Tailwind.
+- **`frontend/index.html`**: The root HTML file serving the React application.
+- **`frontend/src/main.jsx`**: The React DOM mounting script.
+- **`frontend/src/App.jsx`**: The root React component that routes between the Overlay and Sidebar window modes.
+- **`frontend/src/index.css`**: Global CSS imports and base Tailwind directives.
+- **`frontend/src/store/taskStore.js`**: Zustand store managing local state for tasks, steps, and UI visibility.
+- **`frontend/src/hooks/useTasks.js`**: React hook for querying and manipulating tasks.
+- **`frontend/src/hooks/useWebSocket.js`**: React hook that connects to the backend WebSocket and hydrates the Redux/Zustand store.
+- **`frontend/src/components/Overlay/Overlay.jsx`**: The search-bar-like command input UI that appears globally.
+- **`frontend/src/components/Overlay/Overlay.css`**: Animations and specific styles for the overlay.
+- **`frontend/src/components/Sidebar/Sidebar.jsx`**: The sliding right-hand panel displaying all active and complete tasks.
+- **`frontend/src/components/Sidebar/Sidebar.css`**: Animations and styling for the sidebar.
+- **`frontend/src/components/Sidebar/TaskCard.jsx`**: A summary card for a distinct task in the sidebar list.
+- **`frontend/src/components/Sidebar/TaskDetail.jsx`**: A detailed view showing every internal thought and step of a specific task.
+- **`frontend/src/components/shared/ProgressBar.jsx`**: Reusable component for displaying task execution progress.
+- **`frontend/src/components/shared/StatusBadge.jsx`**: UI element indicating if a task is running, complete, or failed.
+- **`scripts/setup.ps1`**: Automated script to create Python venv, install Python/Node deps, and setup Playwright.
+- **`scripts/smoke_test.py`**: Basic automated tests to verify core logic without UI overhead.
+- **`scripts/start-dev.ps1`**: Development script firing up FastAPI, Vite, and Electron simultaneously locally.
 
 ARIA is being built in phases. Here is the complete vision:
 
 ### Phase 1 — Local AI Worker (Current)
 A desktop app that runs AI agents locally, takes natural language tasks, executes them using web browsing and code execution, and returns real files and results. Runs on one machine. Uses Claude or Groq APIs.
+## 7. WHAT IS IN PROGRESS
+- [ ~ ] End-to-End Task Validation
+  - Core logic and UI exist and function up until LLM execution.
+  - Missing: Needs a valid `ANTHROPIC_API_KEY` to actually ping Claude and verify tool usage accuracy.
+  - Exact file to open and what to add: Open `.env` and add a valid api key for `ANTHROPIC_API_KEY`.
+- [ ~ ] Tool Isolation Testing
+  - `scripts/tools_test.py` created; run to verify all tools print PASS.
+- [ ~ ] Live Desktop Control
+  - Screen tools now include visible browser launch plus mouse/keyboard automation for tasks that explicitly ask for Chrome or live cursor movement.
+  - Added task-specific tool filtering in the agent loop to reduce Groq token usage for live desktop tasks.
+  - Sidebar renderer now uses safer task normalization and an error boundary to avoid full white-screen crashes from malformed payloads or oversized screenshots.
+  - Missing: end-to-end validation of a real live desktop task through the overlay.
+- [ ~ ] OpenRouter Fallback
+  - Backend now supports `LLM_PROVIDER=openrouter` with OpenRouter chat completions for tool-calling tasks.
+  - Missing: real API-key validation in the local environment.
 
 ### Phase 2 — Offline + Free AI
 Full **Ollama integration** — AI runs entirely on your GPU/CPU. Zero API cost. Zero data leaving the machine. Switch between Claude, Groq, and local models from a settings panel.
@@ -94,6 +156,102 @@ Shared agent memory across a team. Role-based task routing. Organizational deplo
 
 ### Phase 7 — Cross-Platform Native Installers
 Clean `.exe` (Windows NSIS), `.dmg` (macOS), and `.AppImage` (Linux) — download and double-click, no terminal needed.
+### TASK: Configure Anthropic API Key & Verify Agent Loop
+Priority: High
+Depends on: None
+Estimated complexity: Small
+Files to create or edit: `.env`, `backend/core/agent.py` (if tweaking needed)
+What to build: Inject a valid `ANTHROPIC_API_KEY` into `.env`, submit a real test command (e.g. "Go to example.com and extract header"), and observe the ReAct loop handle it perfectly.
+Definition of done: The agent successfully completes a web browsing task autonomously, extracts knowledge, and outputs a file or summary.
+
+### TASK: Local LLM (Ollama) Support
+Priority: Medium
+Depends on: Configure Anthropic API Key & Verify Agent Loop
+Estimated complexity: Large
+Files to create or edit: `backend/core/agent.py`, `backend/config.py`
+What to build: Modify the agent loop to add an alternative client utilizing the `ollama` Python library, allowing execution entirely locally on hardware instead of relying on Claude. Ensure tool definitions are compatible with open weights models.
+Definition of done: User can select a local model via config to execute a simple task completely offline.
+
+### TASK: Skill / Plugin Marketplace Architecture
+Priority: Medium
+Depends on: Configure Anthropic API Key & Verify Agent Loop
+Estimated complexity: Large
+Files to create or edit: `backend/tools/dynamic_loader.py`, `backend/models/plugin.py`
+What to build: Create a system for dynamically loading python files as "skills" that extend the `TOOL_REGISTRY`. Allow the Frontend to display available skills.
+Definition of done: A user can drop a `.py` skill file into a plugins folder, restart, and the agent can suddenly use a new external service tool without hardcoded changes.
+
+### TASK: Scheduled / Recurring Tasks
+Priority: Low
+Depends on: End-to-End Validation
+Estimated complexity: Medium
+Files to create or edit: `backend/core/scheduler.py`, DB schema updates
+What to build: Add a cron-like scheduler loop that periodically reads the DB for recurring tasks and submits them to the `task_manager` queue.
+Definition of done: User can define a task to "Run every hour", and ARIA logs the execution automatically.
+
+## TEAM OWNERSHIP
+
+| Module | Owner | Files Owned |
+|--------|-------|-------------|
+| Agent Core & LLM Loop | Backend Dev 1 | backend/core/agent.py, backend/core/router.py, backend/core/task_manager.py |
+| Tools & Browser Automation | Backend Dev 2 | backend/tools/*, backend/core/broadcaster.py |
+| Frontend & Electron UI | Frontend Dev | frontend/src/*, electron/main.js, electron/preload.js |
+| Infrastructure & Testing | Generalist | backend/db/*, backend/utils/*, scripts/*, MASTER.md |
+| Architecture & Integration | Lead | All files — review only, no direct module ownership |
+
+Rules:
+- You make all decisions inside your module
+- You ask Lead before changing anything outside your module
+- You update MASTER.md every time you complete or start something
+
+## 9. THE DEMO SCRIPT
+1. Ensure the machine is fresh and `scripts/setup.ps1` has been run.
+2. Provide a valid `.env` with `ANTHROPIC_API_KEY`.
+3. Run `.\scripts\start-dev.ps1`. Wait for "App ready. Press Control+Shift+Space" in terminal.
+4. Press `Ctrl+Shift+Space` (or Cmd+Shift+Space on Mac). Verify the sleek Overlay appears centered on screen.
+5. Search bar: type "Go to hacker news, get the top 3 stories, and save them to a file named hn_top.json" and press Enter.
+6. Verify the Overlay vanishes immediately.
+7. Verify the Sidebar slides in from the right. A new task appears labeled "running".
+8. In the sidebar, click the task to expand steps.
+9. Watch as steps populate in real-time: "Navigating to ...", "Extracting ...", "Writing file ...".
+10. Wait ~15 seconds. Verify the task state updates to "Complete".
+11. Right click system tray -> "Open Output Folder".
+12. Verify `hn_top.json` exists locally containing accurate data.
+
+## 10. HOW TO RUN THE PROJECT
+1. Fresh Machine Setup: Open a PowerShell terminal as Administrator (or standard user with execution bypass rights).
+2. Navigate to project root: `cd \path\to\ARIA` (or `Newato` in this environment)
+3. Run the setup: `.\scripts\setup.ps1` (This creates the Python venv, installs NPM packages, installs Playwright browsers, and creates a `.env` file).
+4. Configuration: Open `.env` and paste your valid `ANTHROPIC_API_KEY`.
+5. Start Dev Server: Run `.\scripts\start-dev.ps1`. This spins up the FastAPI backend, the Vite frontend dev server, and launches Electron.
+6. The app minimizes to the system tray. Use `Ctrl+Shift+Space` to summon the agent.
+
+## 11. ENVIRONMENT VARIABLES
+- `ANTHROPIC_API_KEY` (Required): The API key for Claude. Tasks fail fast with 401 if missing or invalid.
+- `ARIA_OUTPUT_DIR` (Optional): Where agents write physical files. Default: `~/ARIA/outputs`.
+- `ARIA_MAX_CONCURRENT_TASKS` (Optional): Limits simultaneous parallel task execution. Default: `4`.
+- `ARIA_WEBSOCKET_PORT` (Optional): Port for IPC. Default: `8765`.
+- `ARIA_MAX_STEPS_PER_TASK` (Optional): Hard limit on agent loop steps. Default: `40`.
+- `ARIA_TASK_TIMEOUT_SECONDS` (Optional): Wall-clock guardrail. Default: `300`.
+- `LOG_LEVEL` (Optional): Logging verbosity. Default: `INFO`.
+
+## 12. KNOWN ISSUES AND BLOCKERS
+No current blockers.
+
+## 13. DECISIONS LOG
+- **LLM Provider:** `LLM_PROVIDER=groq` is now the default provider. It's free and incurs no cost, utilizing Groq's high-speed LLaMA 3.3 model. Anthropic Claude remains supported via configuration.
+- **Visible Browser Tasks:** Requests that explicitly mention Chrome, live browsing, or cursor movement now prefer headed browser or desktop-control tools instead of only hidden Playwright automation.
+- **OpenRouter Support:** Added OpenRouter as an OpenAI-compatible fallback provider so ARIA can switch away from Groq when Groq quota is exhausted.
+- **Electron over Native (Swift/C++):** Decided heavily in favor of Electron for rapid, cross-platform iteration and because standard web tech combined with Python covers all required capability.
+- **Python over Node for Backend:** Python chosen for backend despite Electron using Node due to Python's undeniably superior ecosystem for data extraction (Playwright), AI engineering (LangChain/Anthropic SDK), and numerical reasoning.
+- **SQLite Database:** Decided against PostgreSQL to ensure the app is a 100% self-contained local desktop application with zero external infrastructure dependencies.
+- **WebSocket IPC rather than normal Electron IPCMain:** Keeps the python backend entirely decoupled from Electron. The backend could theoretically be hosted on a separate server without code changes.
+
+## 14. TEAM WORKING RULES
+- Always read MASTER.md before starting any work
+- Always update MASTER.md before ending any session
+- Never mark a task complete unless it runs
+- Every new file created must be added to the file structure section with its explanation
+- Every architectural decision must be logged in the Decisions Log
 
 ---
 
