@@ -21,6 +21,11 @@ class Settings:
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "anthropic")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "openrouter/free")
+    OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    OPENROUTER_SITE_URL: str = os.getenv("OPENROUTER_SITE_URL", "")
+    OPENROUTER_APP_NAME: str = os.getenv("OPENROUTER_APP_NAME", "ARIA")
     CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
     DB_PATH: Path = Path(__file__).parent / "aria.db"
     HOST: str = "127.0.0.1"
@@ -36,5 +41,7 @@ def validate_config() -> list[str]:
         errors.append("ANTHROPIC_API_KEY is not set in .env")
     if settings.LLM_PROVIDER == "groq" and not settings.GROQ_API_KEY:
         errors.append("GROQ_API_KEY is not set in .env")
+    if settings.LLM_PROVIDER == "openrouter" and not settings.OPENROUTER_API_KEY:
+        errors.append("OPENROUTER_API_KEY is not set in .env")
     settings.ARIA_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     return errors

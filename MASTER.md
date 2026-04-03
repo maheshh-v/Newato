@@ -62,7 +62,7 @@ graph TD;
 - **`backend/tools/registry.py`**: The central registry defining the JSON schema for every tool available to the LLM.
 - **`backend/tools/browser_tools.py`**: Implements Playwright functions for web navigation, clicking, typing, and extraction.
 - **`backend/tools/code_tools.py`**: Safety-restricted functions for executing Python code strings and writing files.
-- **`backend/tools/screen_tools.py`**: Placeholder for future visual UI interaction tools.
+- **`backend/tools/screen_tools.py`**: Desktop interaction tools for screenshots, visible browser launch, and real mouse/keyboard control.
 - **`backend/utils/logger.py`**: Custom structured logging configuration for the backend.
 - **`backend/utils/sanitizer.py`**: Utilities to truncate large string outputs (like huge HTML blobs) before saving/sending.
 - **`electron/main.js`**: The main Node process managing Electron windows, system tray, global shortcuts, and launching Python.
@@ -118,6 +118,16 @@ graph TD;
   - Core logic and UI exist and function up until LLM execution.
   - Missing: Needs a valid `ANTHROPIC_API_KEY` to actually ping Claude and verify tool usage accuracy.
   - Exact file to open and what to add: Open `.env` and add a valid api key for `ANTHROPIC_API_KEY`.
+- [ ~ ] Tool Isolation Testing
+  - `scripts/tools_test.py` created; run to verify all tools print PASS.
+- [ ~ ] Live Desktop Control
+  - Screen tools now include visible browser launch plus mouse/keyboard automation for tasks that explicitly ask for Chrome or live cursor movement.
+  - Added task-specific tool filtering in the agent loop to reduce Groq token usage for live desktop tasks.
+  - Sidebar renderer now uses safer task normalization and an error boundary to avoid full white-screen crashes from malformed payloads or oversized screenshots.
+  - Missing: end-to-end validation of a real live desktop task through the overlay.
+- [ ~ ] OpenRouter Fallback
+  - Backend now supports `LLM_PROVIDER=openrouter` with OpenRouter chat completions for tool-calling tasks.
+  - Missing: real API-key validation in the local environment.
 
 ## 8. WHAT IS NOT STARTED — ORDERED BY PRIORITY
 
@@ -240,6 +250,8 @@ No current blockers.
 
 ## 13. DECISIONS LOG
 - **LLM Provider:** `LLM_PROVIDER=groq` is now the default provider. It's free and incurs no cost, utilizing Groq's high-speed LLaMA 3.3 model. Anthropic Claude remains supported via configuration.
+- **Visible Browser Tasks:** Requests that explicitly mention Chrome, live browsing, or cursor movement now prefer headed browser or desktop-control tools instead of only hidden Playwright automation.
+- **OpenRouter Support:** Added OpenRouter as an OpenAI-compatible fallback provider so ARIA can switch away from Groq when Groq quota is exhausted.
 - **Electron over Native (Swift/C++):** Decided heavily in favor of Electron for rapid, cross-platform iteration and because standard web tech combined with Python covers all required capability.
 - **Python over Node for Backend:** Python chosen for backend despite Electron using Node due to Python's undeniably superior ecosystem for data extraction (Playwright), AI engineering (LangChain/Anthropic SDK), and numerical reasoning.
 - **SQLite Database:** Decided against PostgreSQL to ensure the app is a 100% self-contained local desktop application with zero external infrastructure dependencies.

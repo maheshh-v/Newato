@@ -30,6 +30,7 @@ const STATUS_BORDER = {
 };
 
 export default function TaskCard({ task, isExpanded, onToggle }) {
+  const description = typeof task.description === 'string' ? task.description : '';
   const isRunning = task.status === 'running';
   const elapsed = useElapsedTime(task.started_at, isRunning);
   const borderClass = STATUS_BORDER[task.status] || STATUS_BORDER.queued;
@@ -37,7 +38,7 @@ export default function TaskCard({ task, isExpanded, onToggle }) {
 
   const handleDelete = (e) => {
     e.stopPropagation();
-    if (confirm(`Delete task: "${task.description.slice(0, 50)}..."?`)) {
+    if (confirm(`Delete task: "${description.slice(0, 50)}..."?`)) {
       deleteTask(task.id);
     }
   };
@@ -75,9 +76,9 @@ export default function TaskCard({ task, isExpanded, onToggle }) {
         </div>
 
         <p className="task-description text-text-primary text-xs font-medium leading-snug line-clamp-2">
-          {task.description.length > 90
-            ? task.description.slice(0, 88) + '…'
-            : task.description}
+          {description.length > 90
+            ? description.slice(0, 88) + '...'
+            : description}
         </p>
 
         {task.current_step_text && !isExpanded && (

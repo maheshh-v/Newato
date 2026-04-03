@@ -42,7 +42,9 @@ contextBridge.exposeInMainWorld('aria', {
    * @param {() => void} callback
    */
   onOverlayFocus: (callback) => {
-    ipcRenderer.on('overlay-focus', () => callback());
+    const handler = () => callback();
+    ipcRenderer.on('overlay-focus', handler);
+    return () => ipcRenderer.removeListener('overlay-focus', handler);
   },
 
   /**
@@ -50,7 +52,9 @@ contextBridge.exposeInMainWorld('aria', {
    * @param {(description: string) => void} callback
    */
   onTaskSubmitted: (callback) => {
-    ipcRenderer.on('task-submitted', (event, description) => callback(description));
+    const handler = (event, description) => callback(description);
+    ipcRenderer.on('task-submitted', handler);
+    return () => ipcRenderer.removeListener('task-submitted', handler);
   },
 
   /**

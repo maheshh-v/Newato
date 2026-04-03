@@ -27,6 +27,7 @@ function EmptyState() {
 export default function Sidebar() {
   const { tasks, expandedTaskId, setExpandedTaskId, runningCount, totalCount } = useTasks();
   const sidebarVisible = useTaskStore((s) => s.sidebarVisible);
+  const clearAllTasks = useTaskStore((s) => s.clearAllTasks);
 
   const handleToggle = (taskId) => {
     setExpandedTaskId(expandedTaskId === taskId ? null : taskId);
@@ -52,6 +53,20 @@ export default function Sidebar() {
           )}
           {totalCount > 0 && (
             <span className="sidebar-count">{totalCount}</span>
+          )}
+          {tasks.length > 0 && (
+            <button
+              type="button"
+              className="sidebar-clear-btn"
+              title="Clear all tasks"
+              onClick={clearAllTasks}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M6 6l1 14h10l1-14" />
+              </svg>
+            </button>
           )}
 
           <div className="sidebar-window-actions">

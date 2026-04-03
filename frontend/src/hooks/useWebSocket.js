@@ -24,57 +24,61 @@ export function useWebSocket() {
       return;
     }
 
-    if (!msg.event_type) return; // ping or unknown
+    try {
+      if (!msg.event_type) return; // ping or unknown
 
-    const { task_id, event_type, data } = msg;
+      const { task_id, event_type, data } = msg;
 
-    // Handle settings event (no task_id)
-    if (event_type === 'settings') {
-      if (data?.output_dir) setOutputDir(data.output_dir);
-      return;
-    }
+      // Handle settings event (no task_id)
+      if (event_type === 'settings') {
+        if (data?.output_dir) setOutputDir(data.output_dir);
+        return;
+      }
 
-    switch (event_type) {
-      case 'task_created':
-        upsertTask({
-          id: task_id,
-          description: data.description,
-          status: data.status || 'queued',
-          created_at: msg.timestamp,
-          ...data,
-        });
-        setSidebarVisible(true);
-        break;
+      switch (event_type) {
+        case 'task_created':
+          upsertTask({
+            id: task_id,
+            description: data?.description,
+            status: data?.status || 'queued',
+            created_at: msg.timestamp,
+            ...data,
+          });
+          setSidebarVisible(true);
+          break;
 
-      case 'task_started':
-        upsertTask({ id: task_id, status: 'running', ...data });
-        break;
+        case 'task_started':
+          upsertTask({ id: task_id, status: 'running', ...data });
+          break;
 
-      case 'step_update':
-        addStep(task_id, {
-          step_number: data.step_number,
-          tool_name: data.tool_name,
-          step_text: data.step_text,
-          timestamp: msg.timestamp,
-          progress: data.progress,
-        });
-        upsertTask({ id: task_id, progress: data.progress, current_step_text: data.step_text });
-        break;
+        case 'step_update':
+          addStep(task_id, {
+            step_number: data?.step_number,
+            tool_name: data?.tool_name,
+            step_text: data?.step_text,
+            timestamp: msg.timestamp,
+            progress: data?.progress,
+          });
+          upsertTask({ id: task_id, progress: data?.progress, current_step_text: data?.step_text });
+          break;
 
-      case 'screenshot_update':
-        setScreenshot(task_id, data.image_b64);
-        break;
+        case 'screenshot_update':
+          setScreenshot(task_id, data?.image_b64);
+          break;
 
-      case 'task_completed':
-        completeTask(task_id, data);
-        break;
+        case 'task_completed':
+          completeTask(task_id, data || {});
+          break;
 
-      case 'task_failed':
-        failTask(task_id, data);
-        break;
+        case 'task_failed':
+          failTask(task_id, data || {});
+          break;
 
-      default:
-        break;
+        default:
+          break;
+      }
+    } catch (error) {
+      console.error('[ARIA WS] Failed to process message', error, msg);
     }
   }, [upsertTask, addStep, setScreenshot, completeTask, failTask, setSidebarVisible, setOutputDir]);
 
