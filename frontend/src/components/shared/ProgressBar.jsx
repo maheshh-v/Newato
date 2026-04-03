@@ -14,7 +14,7 @@ export default function ProgressBar({ progress = 0, status = 'queued' }) {
   const pct = Math.round(Math.max(0, Math.min(1, progress)) * 100);
 
   return (
-    <div className="w-full h-0.5 bg-bg-border rounded-full overflow-hidden">
+    <div className="w-full h-0.5 bg-border rounded-full overflow-hidden">
       <div
         className={`h-full rounded-full transition-all duration-500 ease-out ${barColor} ${status === 'running' ? 'animate-shimmer' : ''}`}
         style={{ width: `${pct}%` }}

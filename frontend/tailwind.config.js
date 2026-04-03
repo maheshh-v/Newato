@@ -3,24 +3,27 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
+      backgroundColor: {
+        'primary': '#0a0a0b',
+        'secondary': '#111113',
+        'elevated': '#18181b',
+        'border': '#27272a',
+      },
+      textColor: {
+        'primary': '#fafafa',
+        'secondary': '#a1a1aa',
+        'muted': '#52525b',
+      },
+      borderColor: {
+        'primary': '#0a0a0b',
+        'secondary': '#111113',
+        'elevated': '#18181b',
+        'border': '#27272a',
+      },
       colors: {
-        bg: {
-          primary: '#0a0a0b',
-          secondary: '#111113',
-          elevated: '#18181b',
-          border: '#27272a',
-        },
-        text: {
-          primary: '#fafafa',
-          secondary: '#a1a1aa',
-          muted: '#52525b',
-        },
-        accent: {
-          blue: '#3b82f6',
-          green: '#22c55e',
-          red: '#ef4444',
-          yellow: '#eab308',
-        },
+        'primary': '#fafafa',
+        'secondary': '#a1a1aa',
+        'muted': '#52525b',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

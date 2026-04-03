@@ -105,6 +105,20 @@ Write-Host ""
 Push-Location $ElectronDir
 $env:ELECTRON_DEV = "true"
 
+# Check if node_modules exists in electron directory
+if (-not (Test-Path "node_modules")) {
+    Write-Host "Installing Electron dependencies..." -ForegroundColor Yellow
+    npm install
+}
+
+Write-Host ""
+Write-Host "Launching Electron (Press Ctrl+Shift+Space to toggle overlay)..." -ForegroundColor Yellow
+Write-Host ""
+
+# Start Electron in dev mode
+& npm run dev
+
+Write-Host ""
 Write-Host "Electron closed. Backend and frontend are still running." -ForegroundColor Yellow
 Write-Host "Press Ctrl+C to stop all services." -ForegroundColor Yellow
 

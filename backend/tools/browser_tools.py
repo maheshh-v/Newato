@@ -49,10 +49,30 @@ async def browser_navigate(inputs: dict[str, Any], context: dict) -> dict:
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     logger.info("Navigating", url=url, task_id=context.get("task_id"))
-    response = await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-    title = await page.title()
-    status = response.status if response else 0
-    return {"url": page.url, "title": title, "status": status}
+    try:
+        response = await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+        title = await page.title()
+        status = response.status if response else 0
+        return {
+            "success": True,
+            "url": page.url,
+            "title": title,
+            "status": status
+        }
+    except PlaywrightTimeoutError:
+        logger.error("Navigation timeout", url=url, task_id=context.get("task_id"))
+        return {
+            "success": False,
+            "error": f"Timeout navigating to {url}",
+            "url": url
+        }
+    except PlaywrightError as e:
+        logger.error("Navigation error", url=url, error=str(e), task_id=context.get("task_id"))
+        return {
+            "success": False,
+            "error": f"Failed to navigate: {str(e)[:200]}",
+            "url": url
+        }
 
 
 async def browser_click(inputs: dict[str, Any], context: dict) -> dict:
@@ -69,13 +89,21 @@ async def browser_click(inputs: dict[str, Any], context: dict) -> dict:
         else:
             await page.locator(selector).first.click(timeout=10_000)
         await page.wait_for_load_state("domcontentloaded", timeout=5_000)
-        return {"clicked": selector, "url": page.url}
+        return {"success": True, "clicked": selector, "url": page.url}
     except PlaywrightTimeoutError:
         # Fallback: try text-based click
         if method != "text":
-            await page.get_by_text(selector, exact=False).first.click(timeout=8_000)
-            return {"clicked": selector, "fallback": "text", "url": page.url}
-        raise
+            try:
+                await page.get_by_text(selector, exact=False).first.click(timeout=8_000)
+                return {"success": True, "clicked": selector, "fallback": "text", "url": page.url}
+            except Exception as e:
+                logger.error("Click fallback failed", selector=selector, error=str(e), task_id=context.get("task_id"))
+                return {"success": False, "error": f"Click failed on '{selector}': {str(e)[:100]}", "selector": selector}
+        logger.error("Click timeout", selector=selector, task_id=context.get("task_id"))
+        return {"success": False, "error": f"Click timeout on '{selector}'", "selector": selector}
+    except PlaywrightError as e:
+        logger.error("Click error", selector=selector, error=str(e), task_id=context.get("task_id"))
+        return {"success": False, "error": f"Click failed: {str(e)[:100]}", "selector": selector}
 
 
 async def browser_type(inputs: dict[str, Any], context: dict) -> dict:

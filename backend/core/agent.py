@@ -59,6 +59,14 @@ CURRENT TASK: {task_description}
 TASK ID: {task_id}
 SCRATCHPAD: {scratchpad}"""
 
+_GROQ_SYSTEM_PROMPT = """You are ARIA — an Autonomous Reasoning and Intelligence Agent.
+Your job is to complete tasks autonomously using the tools available to you.
+
+TASK: {task_description}
+SCRATCHPAD: {scratchpad}
+
+Be efficient. Use tools strategically. Save results to files. Track progress."""
+
 
 def _make_step_text(tool_name: str, inputs: dict) -> str:
     """Generate a human-readable description of the current action."""
@@ -148,19 +156,23 @@ async def run_agent(task: Task) -> None:
         nonlocal playwright_ctx, browser, context, page
         if page is not None:
             return page
-        playwright_ctx = await async_playwright().start()
-        browser = await playwright_ctx.chromium.launch(headless=True)
-        context = await browser.new_context(
-            viewport={"width": 1280, "height": 800},
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-        )
-        page = await context.new_page()
-        logger.info("Browser context created", task_id=task_id)
-        return page
+        try:
+            playwright_ctx = await async_playwright().start()
+            browser = await playwright_ctx.chromium.launch(headless=True)
+            context = await browser.new_context(
+                viewport={"width": 1280, "height": 800},
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+            )
+            page = await context.new_page()
+            logger.info("Browser context created", task_id=task_id)
+            return page
+        except Exception as e:
+            logger.error("Browser launch failed", task_id=task_id, error=str(e), exc_info=True)
+            raise RuntimeError(f"Browser launch failed: {str(e)}. Run 'playwright install chromium' to fix this.")
 
     async def _cleanup_browser() -> None:
         nonlocal playwright_ctx, browser, context, page
@@ -211,8 +223,13 @@ async def run_agent(task: Task) -> None:
                     task_id=task_id,
                     scratchpad=json.dumps(scratchpad, indent=2) if scratchpad else "{}",
                 )
+            elif settings.LLM_PROVIDER == "deepseek":
+                system = _GROQ_SYSTEM_PROMPT.format(
+                    task_description=task.description,
+                    scratchpad=json.dumps(scratchpad) if scratchpad else "",
+                )
             else:
-                # Simpler prompt for Groq
+                # For Groq and other providers
                 system = _GROQ_SYSTEM_PROMPT.format(
                     task_description=task.description,
                     scratchpad=json.dumps(scratchpad) if scratchpad else "",

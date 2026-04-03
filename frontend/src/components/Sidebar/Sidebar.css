@@ -109,10 +109,38 @@
 .sidebar-task-list {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 10px 10px 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  min-height: 200px;
+}
+
+/* Custom scrollbar - Webkit (Chrome, Safari, Edge) */
+.sidebar-task-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar-task-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-task-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.sidebar-task-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.sidebar-task-list::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* Task card */
@@ -123,6 +151,9 @@
   cursor: pointer;
   transition: background 0.15s ease;
   border: 1px solid transparent;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
 }
 
 .task-card:hover {
@@ -140,6 +171,9 @@
   padding: 12px 12px 10px;
   cursor: pointer;
   outline: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .task-card-header:focus-visible {
@@ -178,6 +212,14 @@
   background: rgba(239, 68, 68, 0.25);
 }
 
+.task-description {
+  color: #fafafa;
+  word-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
 /* Task detail */
 .task-detail {
   padding: 12px;
@@ -186,9 +228,32 @@
 .step-log {
   max-height: 160px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+/* Scrollbar for step log - Webkit */
+.step-log::-webkit-scrollbar {
+  width: 6px;
+}
+
+.step-log::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.step-log::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.step-log::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .step-item {

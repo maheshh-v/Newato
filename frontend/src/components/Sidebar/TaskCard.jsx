@@ -62,7 +62,7 @@ export default function TaskCard({ task, isExpanded, onToggle }) {
         <div className="flex items-center justify-between mb-1.5">
           <StatusBadge status={task.status} />
           <div className="flex items-center gap-2">
-            <span className="text-text-muted text-[10px] font-mono">{elapsed}</span>
+            <span className="text-gray-400 text-[10px] font-mono">{elapsed}</span>
             <button
               className="task-card-delete-btn"
               onClick={handleDelete}
@@ -74,14 +74,14 @@ export default function TaskCard({ task, isExpanded, onToggle }) {
           </div>
         </div>
 
-        <p className="task-description text-text-primary text-xs font-medium leading-snug line-clamp-2">
+        <p className="task-description text-white text-xs font-medium leading-snug line-clamp-2">
           {task.description.length > 90
             ? task.description.slice(0, 88) + '…'
             : task.description}
         </p>
 
         {task.current_step_text && !isExpanded && (
-          <p className="text-text-muted text-[10px] mt-1.5 truncate">
+          <p className="text-gray-400 text-[10px] mt-1.5 truncate">
             {task.current_step_text}
           </p>
         )}
