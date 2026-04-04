@@ -90,10 +90,19 @@ async def get_task_steps(task_id: str) -> list[dict]:
 
 
 @app.delete("/tasks/{task_id}")
-async def cancel_task(task_id: str) -> dict:
-    """Cancel a running task."""
-    cancelled = await task_manager.cancel_task(task_id)
-    return {"cancelled": cancelled, "task_id": task_id}
+async def delete_task_endpoint(task_id: str) -> dict:
+    """Delete a task and all its associated steps and scratchpad from the database."""
+    try:
+        db = await get_db()
+        # Cancel if task is running
+        await task_manager.cancel_task(task_id)
+        # Then delete from database (cascade deletes steps and scratchpad)
+        await queries.delete_task(db, task_id)
+        logger.info("Task deleted successfully", task_id=task_id)
+        return {"deleted": True, "task_id": task_id}
+    except Exception as e:
+        logger.error("Failed to delete task", task_id=task_id, error=str(e))
+        return {"deleted": False, "task_id": task_id, "error": str(e)}
 
 
 @app.get("/health")

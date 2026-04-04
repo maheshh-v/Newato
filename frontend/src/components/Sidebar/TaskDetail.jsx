@@ -30,13 +30,13 @@ export default function TaskDetail({ task, onClose }) {
       {/* Header */}
       <div className="flex items-start justify-between mb-3 gap-2">
         <div className="flex-1 min-w-0">
-          <p className="text-text-primary text-sm font-medium leading-tight break-words">
+          <p className="text-white text-sm font-medium leading-tight break-words">
             {task.description}
           </p>
           <div className="flex items-center gap-2 mt-1.5">
             <StatusBadge status={task.status} />
             {task.started_at && (
-              <span className="text-text-muted text-xs font-mono">
+              <span className="text-gray-400 text-xs font-mono">
                 {formatDuration(task.started_at, task.completed_at)}
               </span>
             )}
@@ -44,7 +44,7 @@ export default function TaskDetail({ task, onClose }) {
         </div>
         <button
           onClick={onClose}
-          className="text-text-muted hover:text-text-secondary transition-colors flex-shrink-0 p-1"
+          className="text-gray-500 hover:text-gray-400 transition-colors flex-shrink-0 p-1"
           title="Collapse"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -69,7 +69,7 @@ export default function TaskDetail({ task, onClose }) {
 
       {/* Screenshot */}
       {task.latest_screenshot && (
-        <div className="mb-3 rounded-lg overflow-hidden border border-bg-border">
+        <div className="mb-3 rounded-lg overflow-hidden border border-border">
           <img
             src={`data:image/png;base64,${task.latest_screenshot}`}
             alt="Browser preview"
@@ -82,7 +82,7 @@ export default function TaskDetail({ task, onClose }) {
       {/* Output files */}
       {task.output_files && task.output_files.length > 0 && (
         <div className="mb-3">
-          <p className="text-text-muted text-[10px] font-semibold tracking-widest mb-1.5">OUTPUT FILES</p>
+          <p className="text-muted text-[10px] font-semibold tracking-widest mb-1.5">OUTPUT FILES</p>
           <div className="flex flex-col gap-1">
             {task.output_files.map((f) => (
               <button
@@ -103,7 +103,7 @@ export default function TaskDetail({ task, onClose }) {
 
       {/* Step log */}
       <div>
-        <p className="text-text-muted text-[10px] font-semibold tracking-widest mb-1.5">
+        <p className="text-gray-400 text-[10px] font-semibold tracking-widest mb-1.5">
           STEPS ({task.steps?.length || 0})
         </p>
         <div className="step-log">
@@ -114,7 +114,7 @@ export default function TaskDetail({ task, onClose }) {
             </div>
           ))}
           {(!task.steps || task.steps.length === 0) && (
-            <p className="text-text-muted text-xs italic">No steps yet...</p>
+            <p className="text-muted text-xs italic">No steps yet...</p>
           )}
         </div>
       </div>

@@ -167,4 +167,101 @@ TOOL_REGISTRY: list[dict] = [
             "required": ["reason"],
         },
     },
+    {
+        "name": "screen_open_app",
+        "description": "Open an application like Brave, Chrome, Firefox, Edge. Useful for opening Brave browser.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "app": {"type": "string", "enum": ["brave", "chrome", "firefox", "edge"]},
+            },
+            "required": ["app"],
+        },
+    },
+    {
+        "name": "screen_move_mouse",
+        "description": "Move the mouse cursor to screen coordinates for visual feedback.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "integer", "description": "X coordinate in pixels"},
+                "y": {"type": "integer", "description": "Y coordinate in pixels"},
+                "duration": {"type": "number", "description": "Duration in seconds (default 0.5)"},
+            },
+            "required": ["x", "y"],
+        },
+    },
+    {
+        "name": "screen_click",
+        "description": "Click at screen coordinates with visible cursor movement.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "integer"},
+                "y": {"type": "integer"},
+                "button": {"type": "string", "enum": ["left", "right", "middle"]},
+            },
+            "required": ["x", "y"],
+        },
+    },
+    {
+        "name": "screen_type",
+        "description": "Type text via keyboard.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+                "interval": {"type": "number"},
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "screen_key_press",
+        "description": "Press keyboard keys (e.g., 'enter', 'ctrl+a', 'tab').",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "keys": {"type": "string"},
+            },
+            "required": ["keys"],
+        },
+    },
+    {
+        "name": "screen_search_human",
+        "description": "Option 1 (preferred): Human-like search with visible cursor movement and keyboard typing in browser search/address bar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "app": {"type": "string", "enum": ["brave", "chrome", "firefox", "edge"]},
+                "interval": {"type": "number", "description": "Typing delay per character"},
+                "fallback_to_url": {"type": "boolean", "description": "If true, fallback to direct URL search on failure"}
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "screen_search_web",
+        "description": "Option 2 (fallback): Open browser directly on a Google search results page for the query when human-like search fails.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "app": {"type": "string", "enum": ["brave", "chrome", "firefox", "edge"]},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "take_screenshot",
+        "description": "Capture a full screenshot of the screen to see current state.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string"},
+            },
+            "required": [],
+        },
+    },
 ]

@@ -98,6 +98,17 @@ async def increment_step_count(db: aiosqlite.Connection, task_id: str) -> None:
     await db.commit()
 
 
+async def delete_task(db: aiosqlite.Connection, task_id: str) -> bool:
+    """Delete a task and all its associated steps and scratchpad entries from the database."""
+    # Delete in cascading order to respect foreign key constraints
+    await db.execute("DELETE FROM scratchpad WHERE task_id = ?", (task_id,))  # Scratchpad references task
+    await db.execute("DELETE FROM steps WHERE task_id = ?", (task_id,))       # Steps references task
+    await db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))            # Finally delete task
+    await db.commit()
+    logger.info("Task deleted from database", task_id=task_id)
+    return True
+
+
 async def insert_step(db: aiosqlite.Connection, step: Step) -> None:
     """Insert an agent step into the steps table."""
     await db.execute(

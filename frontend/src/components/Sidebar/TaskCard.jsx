@@ -35,10 +35,30 @@ export default function TaskCard({ task, isExpanded, onToggle }) {
   const borderClass = STATUS_BORDER[task.status] || STATUS_BORDER.queued;
   const deleteTask = useTaskStore((s) => s.deleteTask);
 
-  const handleDelete = (e) => {
+  const handleDelete = async (e) => {
     e.stopPropagation();
     if (confirm(`Delete task: "${task.description.slice(0, 50)}..."?`)) {
-      deleteTask(task.id);
+      try {
+        // Call backend DELETE endpoint
+        const response = await fetch(`http://127.0.0.1:8765/tasks/${task.id}`, {
+          method: 'DELETE',
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.deleted) {
+          // Then remove from frontend store
+          deleteTask(task.id);
+          console.log('[Task] Deleted task:', task.id);
+        } else {
+          const errorMsg = data.error || 'Unknown error';
+          console.error('[Task] Failed to delete:', errorMsg);
+          alert(`Failed to delete task: ${errorMsg}`);
+        }
+      } catch (err) {
+        console.error('[Task] Delete error:', err);
+        alert('Error deleting task: ' + err.message);
+      }
     }
   };
 
@@ -62,7 +82,7 @@ export default function TaskCard({ task, isExpanded, onToggle }) {
         <div className="flex items-center justify-between mb-1.5">
           <StatusBadge status={task.status} />
           <div className="flex items-center gap-2">
-            <span className="text-text-muted text-[10px] font-mono">{elapsed}</span>
+            <span className="text-gray-400 text-[10px] font-mono">{elapsed}</span>
             <button
               className="task-card-delete-btn"
               onClick={handleDelete}
@@ -74,14 +94,14 @@ export default function TaskCard({ task, isExpanded, onToggle }) {
           </div>
         </div>
 
-        <p className="task-description text-text-primary text-xs font-medium leading-snug line-clamp-2">
+        <p className="task-description text-white text-xs font-medium leading-snug line-clamp-2">
           {task.description.length > 90
             ? task.description.slice(0, 88) + '…'
             : task.description}
         </p>
 
         {task.current_step_text && !isExpanded && (
-          <p className="text-text-muted text-[10px] mt-1.5 truncate">
+          <p className="text-gray-400 text-[10px] mt-1.5 truncate">
             {task.current_step_text}
           </p>
         )}
