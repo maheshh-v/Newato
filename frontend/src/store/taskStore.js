@@ -43,10 +43,42 @@ const useTaskStore = create((set, get) => ({
   /** @type {boolean} Whether sidebar is visible */
   sidebarVisible: true,
 
+  /** @type {boolean} Whether sidebar is collapsed to a dot */
+  isCollapsed: false,
+
   /** @type {string|null} Backend output directory path */
   outputDir: null,
 
   // ── Actions ───────────────────────────────────────────────────────────────
+
+  setCollapsed: (collapsed) => {
+    const isCurrentlyCollapsed = get().isCollapsed;
+    if (collapsed === isCurrentlyCollapsed) return;
+
+    if (collapsed) {
+      if (window.aria?.setSidebarCollapsed) {
+        // Start sliding out in UI first, wait for slide to finish
+        // We'll set a temporary class or just use the visible state
+      }
+      set({ sidebarVisible: false });
+      setTimeout(() => {
+        // After slide out, change window size to dot size and re-mount as dot
+        set({ isCollapsed: true });
+        if (window.aria?.setSidebarCollapsed) {
+          window.aria.setSidebarCollapsed(true);
+        }
+      }, 250); // Matches CSS slide out
+    } else {
+      // First, restore window size to full 320px
+      if (window.aria?.setSidebarCollapsed) {
+        window.aria.setSidebarCollapsed(false);
+      }
+      // Wait for Electron to apply the resize before sliding in
+      setTimeout(() => {
+        set({ isCollapsed: false, sidebarVisible: true });
+      }, 50);
+    }
+  },
 
   /** Add or update a task (upsert by id). */
   upsertTask: (taskData) => set((state) => {

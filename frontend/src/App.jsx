@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import Overlay from './components/Overlay/Overlay.jsx';
 import Sidebar from './components/Sidebar/Sidebar.jsx';
 import { useWebSocket } from './hooks/useWebSocket.js';
+import useTaskStore from './store/taskStore.js';
 
 function getWindowType() {
   // In Electron, window type is passed via URL query param
@@ -23,15 +24,23 @@ function getWindowType() {
 export default function App() {
   const windowType = getWindowType();
   const { submitTask } = useWebSocket();
+  const setCollapsed = useTaskStore(s => s.setCollapsed);
 
   useEffect(() => {
     // In Electron sidebar: listen for task-submitted from IPC
-    if (windowType === 'sidebar' && window.aria?.onTaskSubmitted) {
-      window.aria.onTaskSubmitted((description) => {
-        submitTask(description);
-      });
+    if (windowType === 'sidebar') {
+      if (window.aria?.onTaskSubmitted) {
+        window.aria.onTaskSubmitted((description) => {
+          submitTask(description);
+        });
+      }
+      if (window.aria?.onExpandSidebar) {
+        window.aria.onExpandSidebar(() => {
+          setCollapsed(false);
+        });
+      }
     }
-  }, [windowType, submitTask]);
+  }, [windowType, submitTask, setCollapsed]);
 
   if (windowType === 'overlay') {
     return (
@@ -43,7 +52,7 @@ export default function App() {
 
   // Sidebar window
   return (
-    <div style={{ width: '320px', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
     </div>
   );

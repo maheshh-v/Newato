@@ -1,139 +1,342 @@
-/* Overlay Window Styles — spec: 580×56, glassmorphism, dark */
-
-.overlay-container {
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
+.assistant-root {
+  position: fixed;
+  inset: 14px 14px auto auto;
+  width: min(420px, calc(100vw - 20px));
+  height: min(520px, calc(100vh - 20px));
+  pointer-events: none;
   -webkit-app-region: no-drag;
 }
 
-.overlay-container.fade-in {
-  animation: fade-in 80ms ease forwards;
+.assistant-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
 }
 
-.overlay-container.fade-out {
-  animation: fade-out 120ms ease forwards;
+.assistant-hit-target {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
-.overlay-window {
-  width: min(760px, calc(100vw - 24px));
-  background: rgba(17, 17, 19, 0.94);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--bg-border);
-  border-radius: 12px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.04);
-  overflow: hidden;
+.assistant-shell {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(400px, calc(100vw - 30px));
+  max-height: min(500px, calc(100vh - 28px));
+  height: max-content;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  position: relative;
+  gap: 14px;
+  transform-origin: top right;
+  transform: translate3d(0, 0, 0) scale(0.015);
+  opacity: 0;
+  border-radius: 26px;
+  background: linear-gradient(150deg, rgba(32, 28, 48, 0.88), rgba(16, 14, 24, 0.95));
+  backdrop-filter: blur(48px) saturate(200%);
+  -webkit-backdrop-filter: blur(48px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+  will-change: transform, opacity;
+  transition:
+    transform var(--open-ms, 360ms) cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 250ms ease,
+    border-radius var(--open-ms, 360ms) ease;
+  pointer-events: none;
+  overflow: hidden;
 }
 
-.overlay-window-controls {
+.assistant-dot-wrap {
   position: absolute;
-  top: 8px;
-  right: 10px;
-  display: flex;
-  gap: 6px;
-  z-index: 2;
+  top: 0;
+  right: 0;
+  margin-top: -2px;
+  margin-right: -2px;
+  width: 14px;
+  height: 14px;
+  transform-origin: center;
+  transition: transform var(--open-ms, 360ms) cubic-bezier(0.2, 0.8, 0.2, 1), opacity 250ms ease;
+  pointer-events: none;
 }
 
-.overlay-window-btn {
-  width: 22px;
-  height: 18px;
-  border-radius: 6px;
-  border: 1px solid var(--bg-border);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-muted);
+.assistant-dot {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d1a5ff, #8b3cff 70%);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 1), 0 0 4px rgba(255, 255, 255, 0.6) inset, 0 4px 8px rgba(0,0,0,0.5);
+  animation: dot-breathe 2.4s ease-in-out infinite alternate;
+}
+
+.assistant-panel {
+  transform-origin: top right;
+  transition: opacity 180ms ease, transform 220ms ease;
+}
+
+.assistant-preview {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: max-content;
+  max-width: 320px;
+  min-width: 200px;
+  padding: 16px 20px;
+  background: linear-gradient(150deg, rgba(32, 28, 48, 0.95), rgba(16, 14, 24, 0.98));
+  backdrop-filter: blur(48px) saturate(200%);
+  -webkit-backdrop-filter: blur(48px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform-origin: top right;
+  transform: translateY(4px) scale(0.96);
+  pointer-events: none;
+  cursor: pointer;
+  z-index: 10;
+  transition: opacity 220ms ease, transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.assistant-preview-title {
+  font-family: "SF Pro Display", "Inter", -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #aebce0;
+  margin-bottom: 6px;
+}
+
+.assistant-preview-text {
+  font-family: "SF Pro Text", "Inter", -apple-system, sans-serif;
   font-size: 13px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  font-weight: 400;
+  line-height: 1.45;
+  color: #e4e9f8;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.overlay-window-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
-}
-
-.overlay-window-btn-minimize {
-  padding-bottom: 2px;
-}
-
-.overlay-window-btn-close:hover {
-  background: rgba(239, 68, 68, 0.22);
-  border-color: rgba(239, 68, 68, 0.35);
-}
-
-.overlay-input-row {
+.assistant-panel {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 84px 0 14px;
-  height: 64px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.overlay-icon {
-  color: var(--text-muted);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-}
-
-.overlay-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: 15px;
-  font-family: 'Inter', system-ui, sans-serif;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-
-.overlay-input::placeholder {
-  color: var(--text-muted);
-}
-
-.overlay-submit-hint {
-  background: rgba(59, 130, 246, 0.15);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  color: var(--accent-blue);
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-  flex-shrink: 0;
-}
-
-.overlay-submit-hint:hover {
-  background: rgba(59, 130, 246, 0.25);
-}
-
-.overlay-footer {
+.assistant-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 14px;
-  border-top: 1px solid rgba(255,255,255,0.04);
-  background: rgba(0,0,0,0.15);
+  margin-top: -6px;
+  margin-left: -2px;
 }
 
-.overlay-shortcut {
-  font-size: 10px;
-  color: var(--text-muted);
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.05em;
+.assistant-panel-title {
+  font-family: "SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #ffffff 0%, #c49aff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #fff;
+  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
 }
 
-.overlay-hint-text {
-  font-size: 10px;
-  color: var(--text-muted);
+.assistant-close {
+  border: 1px solid rgba(159, 176, 216, 0.32);
+  background: rgba(39, 45, 72, 0.48);
+  color: #ced8f3;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.assistant-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(159, 176, 216, 0.24);
+  background: rgba(15, 18, 30, 0.68);
+  border-radius: 14px;
+  padding: 10px 11px;
+}
+
+.assistant-input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #eef3ff;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.assistant-input::placeholder {
+  color: #8f9cbc;
+}
+
+.assistant-send {
+  border: 1px solid rgba(91, 108, 255, 0.44);
+  background: rgba(91, 108, 255, 0.18);
+  color: #dce4ff;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.assistant-send:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.assistant-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assistant-chip {
+  border: 1px solid rgba(159, 176, 216, 0.26);
+  background: rgba(32, 37, 58, 0.52);
+  color: #d6def5;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.assistant-shortcuts {
+  font-size: 11px;
+  color: #8f9cbc;
+}
+
+.state-idle .assistant-shell {
+  transform: translate3d(0, 0, 0) scale(0.018);
+  opacity: 0;
+  border-radius: 999px;
+}
+
+.state-preview .assistant-shell {
+  transform: translate3d(0, 0, 0) scale(0.018);
+  opacity: 0;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.state-preview .assistant-preview {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+
+
+.state-active .assistant-shell {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+  border-radius: 26px;
+  pointer-events: auto;
+  box-shadow: none;
+}
+
+.state-active .assistant-panel {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+
+
+.state-closing .assistant-shell {
+  transform: translate3d(0, 0, 0) scale(0.018);
+  opacity: 0;
+  border-radius: 999px;
+  transition-duration: var(--close-ms, 280ms);
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.state-closing .assistant-panel {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.state-active .assistant-hit-target,
+.state-closing .assistant-hit-target {
+  pointer-events: none;
+}
+
+@keyframes dot-breathe {
+  0% {
+    transform: scale(0.92);
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.4), 0 0 2px rgba(255, 255, 255, 0.3) inset;
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 24px rgba(192, 132, 252, 1), 0 0 12px rgba(233, 213, 255, 0.9) inset;
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.92);
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.4), 0 0 2px rgba(255, 255, 255, 0.3) inset;
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-shell,
+  .assistant-preview,
+  .assistant-panel,
+  .assistant-dot-wrap,
+  .assistant-dot {
+    animation: none !important;
+    transition-duration: 120ms !important;
+    transition-timing-function: linear !important;
+  }
+
+  .state-idle .assistant-shell {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0;
+  }
+
+  .state-active .assistant-shell,
+  .state-closing .assistant-shell {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.state-preview .assistant-dot-wrap,
+.state-active .assistant-dot-wrap {
+  opacity: 0;
+  transform: scale(0);
+}
+
+.state-closing .assistant-dot-wrap {
+  opacity: 1;
+  transform: scale(1);
+  transition-delay: 50ms;
+}
+
+.state-idle .assistant-dot-wrap {
+  opacity: 1;
+  transform: scale(1);
 }

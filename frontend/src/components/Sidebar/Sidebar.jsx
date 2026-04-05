@@ -4,6 +4,7 @@
  * Slides in from right on first task.
  * @param {{ onSubmitTask?: (desc: string) => void }} props
  */
+import { useEffect, useRef } from 'react';
 import useTaskStore from '../../store/taskStore.js';
 import { useTasks } from '../../hooks/useTasks.js';
 import TaskCard from './TaskCard.jsx';
@@ -27,13 +28,66 @@ function EmptyState() {
 export default function Sidebar() {
   const { tasks, expandedTaskId, setExpandedTaskId, runningCount, totalCount } = useTasks();
   const sidebarVisible = useTaskStore((s) => s.sidebarVisible);
+  const isCollapsed = useTaskStore((s) => s.isCollapsed);
+  const setCollapsed = useTaskStore((s) => s.setCollapsed);
+  
+  const timerRef = useRef(null);
+
+  const resetTimer = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    // Collapse after inactivity if sidebar is currently visible
+    if (sidebarVisible) {
+      timerRef.current = setTimeout(() => {
+        setCollapsed(true);
+      }, 5000); // 5s smooth collapse
+    }
+  };
+
+  useEffect(() => {
+    if (isCollapsed) return; // don't run timer if already collapsed
+    resetTimer();
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [sidebarVisible, isCollapsed]);
 
   const handleToggle = (taskId) => {
     setExpandedTaskId(expandedTaskId === taskId ? null : taskId);
   };
 
+  const handleDotClick = () => {
+    setCollapsed(false);
+    resetTimer();
+  };
+
+  if (isCollapsed) {
+    return (
+      <div 
+        className="sidebar-dot-mac animate-fade-in" 
+        onClick={handleDotClick}
+      >
+        <div className={`mac-dot ${runningCount > 0 ? 'running' : ''}`} />
+      </div>
+    );
+  }
+
+  const handleMouseLeave = () => {
+    // Force a fresh 3 second timer when mouse completely leaves the sidebar area
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (sidebarVisible) {
+      timerRef.current = setTimeout(() => {
+        setCollapsed(true);
+      }, 3000); // 3s collapse when mouse actively leaves
+    }
+  };
+
   return (
-    <div className={`sidebar ${sidebarVisible ? 'sidebar-visible animate-slide-in-right' : 'sidebar-hidden'}`}>
+    <div 
+      className={`sidebar ${sidebarVisible ? 'sidebar-visible animate-slide-in-right' : 'sidebar-hidden'}`}
+      onMouseMove={resetTimer}
+      onClick={resetTimer}
+      onMouseLeave={handleMouseLeave}
+    >
       {/* Header */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
