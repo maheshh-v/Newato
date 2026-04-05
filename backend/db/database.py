@@ -71,6 +71,21 @@ async def _create_tables(db: aiosqlite.Connection) -> None:
             updated_at INTEGER NOT NULL,
             PRIMARY KEY (task_id, key)
         );
+
+        CREATE TABLE IF NOT EXISTS memory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id TEXT,
+            summary TEXT NOT NULL,
+            keywords TEXT NOT NULL,
+            output_files TEXT,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS user_profile (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
     """)
 
 

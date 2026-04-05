@@ -168,3 +168,77 @@ async def get_scratchpad(db: aiosqlite.Connection, task_id: str) -> dict[str, st
     ) as cur:
         rows = await cur.fetchall()
         return {r["key"]: r["value"] for r in rows}
+
+
+async def save_memory(
+    db: aiosqlite.Connection,
+    task_id: str,
+    summary: str,
+    keywords: str,
+    output_files: str,
+) -> None:
+    """Save a completed task to the memory table."""
+    now = int(time.time() * 1000)
+    await db.execute(
+        """
+        INSERT INTO memory (task_id, summary, keywords, output_files, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (task_id, summary, keywords, output_files, now),
+    )
+    await db.commit()
+
+
+async def search_memory(
+    db: aiosqlite.Connection, query_keywords: list[str], limit: int = 3
+) -> list[dict]:
+    """Search memory table for past tasks matching keywords."""
+    if not query_keywords:
+        return []
+    
+    conditions = " OR ".join(["keywords LIKE ?" for _ in query_keywords])
+    params = [f"%{kw}%" for kw in query_keywords]
+    
+    query = f"""
+        SELECT * FROM memory 
+        WHERE {conditions}
+        ORDER BY created_at DESC 
+        LIMIT ?
+    """
+    params.append(str(limit))
+    
+    async with db.execute(query, params) as cur:
+        rows = await cur.fetchall()
+        return [
+            {
+                "id": r["id"],
+                "task_id": r["task_id"],
+                "summary": r["summary"],
+                "keywords": r["keywords"],
+                "output_files": r["output_files"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+
+
+async def upsert_user_profile(
+    db: aiosqlite.Connection, key: str, value: str
+) -> None:
+    """Insert or replace a user profile entry."""
+    now = int(time.time() * 1000)
+    await db.execute(
+        """
+        INSERT OR REPLACE INTO user_profile (key, value, updated_at)
+        VALUES (?, ?, ?)
+        """,
+        (key, value, now),
+    )
+    await db.commit()
+
+
+async def get_all_user_profile(db: aiosqlite.Connection) -> dict[str, str]:
+    """Get all user profile entries."""
+    async with db.execute("SELECT key, value FROM user_profile") as cur:
+        rows = await cur.fetchall()
+        return {r["key"]: r["value"] for r in rows}

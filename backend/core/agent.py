@@ -33,6 +33,7 @@ Your job is to complete tasks autonomously using the tools available to you. You
 
 CORE PRINCIPLES:
 - Always make progress. Do not repeat the same failed action twice.
+- If the task is unclear or ambiguous, do NOT call task_failed. Instead, do something simple like print a greeting or write a welcome file.
 - Prefer efficiency. If a task can be done with code, do it with code. Browser automation is for when you need to interact with a web interface.
 - Save results. Any data extracted, any file created — write it to disk.
 - Use your scratchpad. Track your progress explicitly so you don't lose state.
@@ -58,47 +59,40 @@ OUTPUT STANDARDS:
 
 CURRENT TASK: {task_description}
 TASK ID: {task_id}
-SCRATCHPAD: {scratchpad}"""
+SCRATCHPAD: {scratchpad}
+
+USER PROFILE:
+{user_profile}
+
+RELEVANT PAST WORK:
+{past_memory}
+
+Use this context silently. Do not mention it unless relevant."""
 
 _GROQ_SYSTEM_PROMPT = """You are ARIA — an Autonomous Reasoning and Intelligence Agent.
-Your job is to complete tasks by calling tools. DO NOT just think - you MUST call tools to make progress.
 
-CRITICAL: Always start by calling a tool. Do not provide analysis - take action immediately.
+Your job is to complete tasks by calling tools. 
 
-Available tool categories:
-1. screen_* tools - For visible cursor control, opening apps, taking screenshots
-2. browser_* tools - For web automation (if browser is available)
-3. run_python - For code execution
-4. write_file / read_file - For file operations
-5. task_complete - When task is FULLY done
-6. task_failed - If task cannot be completed
+IMPORTANT:
+- If the task is unclear or ambiguous, do NOT call task_failed. Instead, do something simple like print a greeting or write a welcome file.
+- Always try to make progress, even if the task is minimal.
+- For text output → use run_python with print() or write_file
+- For file operations → use write_file  
+- For code execution → use run_python
+- For browser tasks → use browser_* tools
+- When task is done → call task_complete with summary
 
-TOOL PRIORITY for "{task_description}":
-- If task mentions "search" → Option 1 FIRST: screen_search_human(query, app)
-- If Option 1 fails → Option 2: screen_search_web(query, app)
-- If task mentions "brave", "chrome", "firefox", "edge" and no search query → Use screen_open_app
-- If task mentions "click", "navigate" → Prefer browser_* tools first; use screen_click/screen_type only when explicitly required
-- If task mentions "take screenshot" or "see" → Use take_screenshot
-- If task mentions "code", "python", "execute" → Use run_python
+Do NOT use screen_* tools unless explicitly needed.
 
-SAFETY RULES (MANDATORY):
-- Never click/type in chats, groups, social media, or messaging UIs unless user explicitly asked.
-- Do not perform random exploratory clicks.
-- If target UI is ambiguous, call task_failed with reason "Ambiguous target UI" instead of guessing.
-- For web search tasks, always try screen_search_human first for visible cursor + typing.
-- Use screen_search_web only as fallback when human mode fails.
-
-SELF-MONITORING RULES (MANDATORY):
-- After each meaningful action, verify whether it moved toward the exact user goal.
-- If an action does not match the user intent, immediately correct course.
-- Never end a task without evidence. Before completion, do one verification step (e.g., screenshot or URL check) and then call task_complete.
-- For small tasks, avoid empty summaries. Include concrete result evidence in task_complete summary.
-
-IMMEDIATE ACTION REQUIRED:
 Task: {task_description}
-Current state: {scratchpad}
 
-Next step: Call a tool NOW. Do not delay. Pick the most relevant tool and execute it."""
+USER PROFILE:
+{user_profile}
+
+RELEVANT PAST WORK:
+{past_memory}
+
+Next step: Call ONE tool now."""
 
 
 def _make_step_text(tool_name: str, inputs: dict) -> str:
@@ -131,6 +125,24 @@ async def run_agent(task: Task) -> None:
     """
     db = await get_db()
     task_id = task.id
+
+    # Load scratchpad from DB at task start
+    scratchpad: dict[str, str] = await queries.get_scratchpad(db, task_id)
+
+    # Load user profile
+    profile = await queries.get_all_user_profile(db)
+    profile_text = "\n".join([f"{k}: {v}" for k, v in profile.items()])
+    if not profile_text:
+        profile_text = "No profile yet"
+
+    # Search past memory for relevant context
+    keywords = [w for w in task.description.split() if len(w) > 4][:3]
+    past_memories = await queries.search_memory(db, keywords, limit=3)
+    memory_text = ""
+    for m in past_memories:
+        memory_text += f"- Past task: {m['summary']}\n"
+    if not memory_text:
+        memory_text = "No relevant past tasks"
 
     # Classify task type
     task_type = classify_task(task.description)
@@ -173,7 +185,6 @@ async def run_agent(task: Task) -> None:
         })
 
     # State
-    scratchpad: dict[str, str] = {}
     messages: list[dict] = []
     groq_messages: list[dict] = []
     step_number = 0
@@ -260,17 +271,23 @@ async def run_agent(task: Task) -> None:
                     task_description=task.description,
                     task_id=task_id,
                     scratchpad=json.dumps(scratchpad, indent=2) if scratchpad else "{}",
+                    user_profile=profile_text,
+                    past_memory=memory_text,
                 )
             elif settings.LLM_PROVIDER == "deepseek":
                 system = _GROQ_SYSTEM_PROMPT.format(
                     task_description=task.description,
                     scratchpad=json.dumps(scratchpad) if scratchpad else "",
+                    user_profile=profile_text,
+                    past_memory=memory_text,
                 )
             else:
                 # For Groq and other providers
                 system = _GROQ_SYSTEM_PROMPT.format(
                     task_description=task.description,
                     scratchpad=json.dumps(scratchpad) if scratchpad else "",
+                    user_profile=profile_text,
+                    past_memory=memory_text,
                 )
 
             # Call LLM based on provider
@@ -314,8 +331,7 @@ async def run_agent(task: Task) -> None:
             elif settings.LLM_PROVIDER in ("groq", "deepseek", "openai"):
                 if not groq_messages:
                     groq_messages.append({"role": "system", "content": system})
-                    # Add initial user message to start task
-                    groq_messages.append({"role": "user", "content": f"Complete this task immediately by calling a tool: {task.description}"})
+                    groq_messages.append({"role": "user", "content": task.description})
                 else:
                     groq_messages[0] = {"role": "system", "content": system}
                 
@@ -423,6 +439,59 @@ async def run_agent(task: Task) -> None:
                     summary: str = inputs.get("summary", "")
                     duration = int(time.time() - task_start)
 
+                    # Save to memory table
+                    keywords_to_save = " ".join([
+                        w for w in task.description.split() if len(w) > 4
+                    ][:10])
+                    await queries.save_memory(
+                        db,
+                        task_id=task_id,
+                        summary=f"Task: {task.description[:100]} | Result: {summary[:200]}",
+                        keywords=keywords_to_save,
+                        output_files=json.dumps(files)
+                    )
+
+                    # Learn user profile from task via LLM
+                    try:
+                        profile_prompt = f"""
+From this task, extract any facts about the user (name, company, 
+preferences, tools they use). 
+Task: {task.description}
+Result: {summary}
+
+Return JSON only: {{"key": "value"}} or {{}} if nothing learned.
+Max 3 facts. Be specific. Example: {{"company_type": "B2B SaaS", "prefers_json_output": "true"}}
+"""
+                        if settings.LLM_PROVIDER == "anthropic":
+                            profile_response = await client.messages.create(
+                                model=settings.CLAUDE_MODEL,
+                                max_tokens=500,
+                                system="You extract user facts from task descriptions. Return ONLY valid JSON.",
+                                messages=[{"role": "user", "content": profile_prompt}],
+                            )
+                            profile_text = profile_response.content[0].text if profile_response.content else "{}"
+                        else:
+                            profile_response = await client.chat.completions.create(
+                                model=settings.LLM_MODEL,
+                                messages=[
+                                    {"role": "system", "content": "You extract user facts from task descriptions. Return ONLY valid JSON."},
+                                    {"role": "user", "content": profile_prompt}
+                                ],
+                                max_tokens=500,
+                            )
+                            profile_text = profile_response.choices[0].message.content or "{}"
+                        
+                        # Parse JSON and upsert to user_profile
+                        import re
+                        json_match = re.search(r'\{[^{}]*\}', profile_text, re.DOTALL)
+                        if json_match:
+                            profile_data = json.loads(json_match.group())
+                            for k, v in profile_data.items():
+                                await queries.upsert_user_profile(db, k, str(v))
+                                logger.info("Learned user profile", key=k, value=v)
+                    except Exception as e:
+                        logger.warning("Failed to learn user profile", error=str(e))
+
                     await queries.update_task_status(
                         db, task_id, "completed",
                         summary=summary,
@@ -526,6 +595,26 @@ async def run_agent(task: Task) -> None:
             # Append tool results for next iteration
             if settings.LLM_PROVIDER == "anthropic":
                 messages.append({"role": "user", "content": tool_results_anthropic})
+
+            # Compress messages after 10 steps (every 5 steps after)
+            if step_number > 10 and step_number % 5 == 0:
+                if settings.LLM_PROVIDER == "anthropic" and len(messages) > 5:
+                    old_msgs = messages[1:-4]
+                    summary = "Previous steps: " + " → ".join([
+                        m.get("content", "")[:50] if isinstance(m.get("content"), str)
+                        else str(m.get("content", ""))[:50]
+                        for m in old_msgs if m.get("role") == "assistant"
+                    ])
+                    messages = [messages[0]] + [{"role": "user", "content": summary}] + messages[-4:]
+                elif settings.LLM_PROVIDER in ("groq", "deepseek", "openai") and len(groq_messages) > 5:
+                    old_msgs = groq_messages[1:-4]
+                    summary = "Previous steps: " + " → ".join([
+                        m.get("content", "")[:50] if isinstance(m.get("content"), str)
+                        else str(m.get("content", ""))[:50]
+                        for m in old_msgs if m.get("role") == "assistant"
+                    ])
+                    groq_messages = [groq_messages[0]] + [{"role": "user", "content": summary}] + groq_messages[-4:]
+                    logger.info("Compressed message history", task_id=task_id, step=step_number)
 
         # Exceeded max steps
         await _finalize_failure(

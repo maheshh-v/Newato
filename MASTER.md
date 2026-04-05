@@ -363,9 +363,9 @@ This means:
 
 | File | Purpose |
 |------|---------|
-| `db/database.py` | Async SQLite setup using `aiosqlite`. Creates tables on startup (`tasks`, `steps`). Provides `get_db()` async context manager. |
+| `db/database.py` | Async SQLite setup using `aiosqlite`. Creates tables on startup (`tasks`, `steps`, `scratchpad`, `memory`, `user_profile`). Provides `get_db()` async context manager. |
 | `db/models.py` | Pydantic models / dataclasses for `Task` (id, description, status, created\_at, output\_path) and `Step` (id, task\_id, tool\_name, input, output, timestamp). |
-| `db/queries.py` | All SQL as named async functions: `create_task()`, `update_task_status()`, `add_step()`, `get_task()`, `get_all_tasks()`, `get_steps_for_task()`. No raw SQL in business logic. |
+| `db/queries.py` | All SQL as named async functions: `create_task()`, `update_task_status()`, `add_step()`, `get_task()`, `get_all_tasks()`, `get_steps_for_task()`, `save_memory()`, `search_memory()`, `upsert_user_profile()`, `get_all_user_profile()`. No raw SQL in business logic. |
 
 | File | Purpose |
 |------|---------|
@@ -487,7 +487,8 @@ These are complete and verified to exist (structure is confirmed):
 | Task router (classifier) | ✅ Complete | Keyword-based classification |
 | Task manager (concurrency) | ✅ Complete | asyncio semaphore wired |
 | Dev scripts (setup + start) | ✅ Complete | One-command setup and start |
-| .env.example | ✅ Complete | All vars documented |
+| .env_example | ✅ Complete | All vars documented |
+| 4-Layer Memory System | ✅ Complete | Scratchpad DB + memory table + user_profile table + message compression |
 
 **The one thing needed to make it live:** A valid `ANTHROPIC_API_KEY` or `GROQ_API_KEY` in `.env`. The entire codebase is wired — it just needs an API key to actually call the LLM.
 
@@ -874,6 +875,28 @@ Redux is overkill for this scale. Zustand is minimal, hook-based, and requires z
 
 ### Why Vite (not Create React App)?
 CRA is deprecated. Vite has 10x faster HMR and build times. Standard choice in 2025+.
+
+### 4-Layer Memory Architecture (Implemented April 2026)
+
+**Layer 1 — Scratchpad Persistence:**
+- Scratchpad was originally a RAM dict that lost state on crash
+- Now loads from SQLite at task start, saves to DB on every update
+- Survives task crashes and restarts
+
+**Layer 2 — Long-term Memory (memory table):**
+- Stores completed task summaries with keywords for search
+- New tasks search past memory for relevant context
+- Injected into system prompt silently
+
+**Layer 3 — User Profile (user_profile table):**
+- Learns facts about user via LLM after each task completes
+- Facts extracted: company type, preferences, tools used
+- Injected into system prompt for personalization
+
+**Layer 4 — Message Compression:**
+- Truncates tool results to 1000 chars to protect context window
+- Compresses message history after 10 steps (every 5 steps after)
+- Summarizes old messages to prevent context overflow
 
 ---
 

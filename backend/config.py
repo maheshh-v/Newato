@@ -14,6 +14,7 @@ class Settings:
     # LLM Provider and Model
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "groq")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
+    CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 
     # API Keys for all supported providers
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
