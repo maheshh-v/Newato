@@ -16,7 +16,7 @@ Reached 3 consecutive tool failures
 
 ### Step 1: Open PowerShell in backend directory
 ```powershell
-cd c:\codeplayground\newato\Newato\backend
+cd "C:\Prabal\Projects\College Project\backend"
 ```
 
 ### Step 2: Install Playwright browsers
