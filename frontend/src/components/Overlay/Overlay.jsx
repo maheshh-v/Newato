@@ -65,15 +65,18 @@ export default function Overlay({ onSubmit }) {
     updateMotionPref();
     mq?.addEventListener?.('change', updateMotionPref);
 
+    let cleanupOpen = null;
+    let cleanupCollapse = null;
+
     if (window.aria?.onAssistantOpenPanel) {
-      window.aria.onAssistantOpenPanel(() => {
+      cleanupOpen = window.aria.onAssistantOpenPanel(() => {
         setInput('');
         openPanel();
       });
     }
 
     if (window.aria?.onAssistantCollapseToDot) {
-      window.aria.onAssistantCollapseToDot(() => {
+      cleanupCollapse = window.aria.onAssistantCollapseToDot(() => {
         closeToDot();
       });
     }
@@ -95,6 +98,8 @@ export default function Overlay({ onSubmit }) {
       window.removeEventListener('keydown', handleGlobalShortcut);
       mq?.removeEventListener?.('change', updateMotionPref);
       clearTimers();
+      if (cleanupOpen) cleanupOpen();
+      if (cleanupCollapse) cleanupCollapse();
     };
   }, [uiState, isReducedMotion]);
 
@@ -252,6 +257,12 @@ export default function Overlay({ onSubmit }) {
           </div>
 
           <div className="assistant-suggestions" aria-label="Context-aware suggestions">
+            <button type="button" className="assistant-chip" onClick={() => {
+              if (window.aria) window.aria.submitTask('__open_sidebar__');
+              closeToDot();
+            }}>
+              View Tasks Dashboard
+            </button>
             <button type="button" className="assistant-chip" onClick={() => setInput('Summarize this tab and suggest next actions')}>
               Summarize this tab
             </button>

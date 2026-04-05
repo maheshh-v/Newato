@@ -28,18 +28,26 @@ export default function App() {
 
   useEffect(() => {
     // In Electron sidebar: listen for task-submitted from IPC
+    let cleanupSubmit = null;
+    let cleanupExpand = null;
+
     if (windowType === 'sidebar') {
       if (window.aria?.onTaskSubmitted) {
-        window.aria.onTaskSubmitted((description) => {
+        cleanupSubmit = window.aria.onTaskSubmitted((description) => {
           submitTask(description);
         });
       }
       if (window.aria?.onExpandSidebar) {
-        window.aria.onExpandSidebar(() => {
+        cleanupExpand = window.aria.onExpandSidebar(() => {
           setCollapsed(false);
         });
       }
     }
+
+    return () => {
+      if (cleanupSubmit) cleanupSubmit();
+      if (cleanupExpand) cleanupExpand();
+    };
   }, [windowType, submitTask, setCollapsed]);
 
   if (windowType === 'overlay') {
