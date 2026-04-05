@@ -19,23 +19,41 @@
     "appId": "com.aria.agent",
     "productName": "ARIA",
     "directories": {
-      "output": "dist"
+      "output": "../dist-installer"
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.png",
+      "requestedExecutionLevel": "asInvoker"
     },
-    "mac": {
-      "target": "dmg",
-      "icon": "assets/icon.png"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "assets/icon.png"
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "ARIA",
+      "runAfterFinish": true
     },
     "files": [
-      "**/*",
-      "!node_modules/.cache"
+      "main.js",
+      "preload.js",
+      "assets/**/*",
+      "dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!**/__pycache__",
+          "!aria.db*"
+        ]
+      }
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node"
     ]
   }
 }
