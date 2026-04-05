@@ -15,13 +15,13 @@ Added screen control tools so you can **see the agent's cursor moving** on your 
 
 ### Step 1: Activate virtual environment
 ```powershell
-cd c:\codeplayground\newato\Newato\backend
+cd "C:\Prabal\Projects\College Project\backend"
 .\venv\Scripts\Activate.ps1
 ```
 
 ### Step 2: Install screen control packages
 ```powershell
-pip install pyautogui mss
+python -m pip install pyautogui mss
 ```
 
 Explanation:
