@@ -143,7 +143,7 @@ async def run_agent(task: Task) -> None:
 
     if settings.LLM_PROVIDER == "anthropic":
         client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    elif settings.LLM_PROVIDER in ("groq", "deepseek", "openai"):
+    elif settings.LLM_PROVIDER in ("groq", "deepseek", "openai", "custom"):
         if settings.LLM_PROVIDER == "groq":
             client = groq.AsyncGroq(api_key=settings.GROQ_API_KEY)
         elif settings.LLM_PROVIDER == "deepseek":
@@ -157,6 +157,14 @@ async def run_agent(task: Task) -> None:
             )
         elif settings.LLM_PROVIDER == "openai":
             client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        elif settings.LLM_PROVIDER == "custom":
+            # Custom / Other — any OpenAI-compatible API
+            from httpx import Timeout
+            timeout = Timeout(timeout=60.0, connect=30.0, read=60.0)
+            custom_kwargs = {"api_key": settings.CUSTOM_API_KEY, "timeout": timeout}
+            if settings.CUSTOM_BASE_URL:
+                custom_kwargs["base_url"] = settings.CUSTOM_BASE_URL
+            client = AsyncOpenAI(**custom_kwargs)
     else:
         raise ValueError(f"Unknown LLM provider: {settings.LLM_PROVIDER}")
 

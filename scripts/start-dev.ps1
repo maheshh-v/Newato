@@ -151,8 +151,15 @@ Write-Host "  |  the AI overlay from anywhere.                  |" -ForegroundCo
 Write-Host "  +-------------------------------------------------+" -ForegroundColor Green
 Write-Host ""
 
-# Run Electron in dev mode (use fullpath since we're in root dir)
-& npx electron $ElectronDir --dev
+# Run Electron in dev mode (use local binary directly instead of npx for better reliability)
+$ElectronBin = Join-Path $Root "node_modules\.bin\electron.cmd"
+if (-not (Test-Path $ElectronBin)) {
+    # Fallback to npx if node_modules is missing
+    Write-Host "  ⚠️ Local Electron binary not found. Falling back to npx..." -ForegroundColor Yellow
+    & npx electron $ElectronDir --dev
+} else {
+    & $ElectronBin $ElectronDir --dev
+}
 
 Write-Host ""
 Write-Host "Electron closed. Backend and frontend are still running." -ForegroundColor Yellow

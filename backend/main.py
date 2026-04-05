@@ -9,8 +9,9 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 
-from config import settings, validate_config
+from config import settings, validate_config, update_env_file
 from core.broadcaster import broadcaster
 from core.task_manager import task_manager
 from db.database import init_db, close_db
@@ -126,6 +127,96 @@ async def ping() -> dict:
         "running_tasks": task_manager.running_count,
         "ws_clients": broadcaster.client_count,
     }
+
+
+# ─── Settings Endpoints ──────────────────────────────────────────────────────
+
+def _mask_key(key: str) -> str:
+    """Show only the last 4 characters of an API key."""
+    if not key or key.startswith("your_"):
+        return ""
+    if len(key) <= 4:
+        return "••••"
+    return "•" * (len(key) - 4) + key[-4:]
+
+
+class SettingsUpdateRequest(BaseModel):
+    llm_provider: Optional[str] = None
+    llm_model: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
+    groq_api_key: Optional[str] = None
+    deepseek_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+
+
+@app.get("/settings")
+async def get_settings() -> dict:
+    """Return current settings with masked API keys."""
+    return {
+        "llm_provider": settings.LLM_PROVIDER,
+        "llm_model": settings.LLM_MODEL,
+        "api_keys": {
+            "anthropic": _mask_key(settings.ANTHROPIC_API_KEY),
+            "groq": _mask_key(settings.GROQ_API_KEY),
+            "deepseek": _mask_key(settings.DEEPSEEK_API_KEY),
+            "openai": _mask_key(settings.OPENAI_API_KEY),
+        },
+    }
+
+
+@app.put("/settings")
+async def save_settings(body: SettingsUpdateRequest) -> dict:
+    """Update settings: write to .env file and hot-reload.
+    Auto-detects provider from whichever API key is provided."""
+    env_updates: dict[str, str] = {}
+
+    # Map API key fields to provider names and default models
+    KEY_TO_PROVIDER = {
+        "groq_api_key": ("groq", "llama-3.3-70b-versatile"),
+        "anthropic_api_key": ("anthropic", "claude-sonnet-4-20250514"),
+        "openai_api_key": ("openai", "gpt-4o"),
+        "deepseek_api_key": ("deepseek", "deepseek-chat"),
+    }
+
+    # Collect any API keys the user sent
+    detected_provider = None
+    detected_model = None
+    for field, (prov, default_model) in KEY_TO_PROVIDER.items():
+        val = getattr(body, field, None)
+        if val and val.strip():
+            env_updates[field.upper()] = val.strip()
+            detected_provider = prov
+            detected_model = default_model
+
+    # If user explicitly set provider/model, use those
+    if body.llm_provider is not None and body.llm_provider.strip():
+        env_updates["LLM_PROVIDER"] = body.llm_provider.strip()
+    elif detected_provider:
+        # Auto-detect: user entered a key, auto-set provider
+        env_updates["LLM_PROVIDER"] = detected_provider
+
+    if body.llm_model is not None and body.llm_model.strip():
+        env_updates["LLM_MODEL"] = body.llm_model.strip()
+    elif detected_model and "LLM_PROVIDER" in env_updates:
+        # Auto-set default model for the detected provider
+        env_updates["LLM_MODEL"] = detected_model
+
+    if not env_updates:
+        return {"saved": False, "error": "No settings provided"}
+
+    try:
+        update_env_file(env_updates)
+        settings.reload()
+        logger.info("Settings updated", keys=list(env_updates.keys()))
+        return {
+            "saved": True,
+            "updated_keys": list(env_updates.keys()),
+            "active_provider": settings.LLM_PROVIDER,
+            "active_model": settings.LLM_MODEL,
+        }
+    except Exception as e:
+        logger.error("Failed to save settings", error=str(e))
+        return {"saved": False, "error": str(e)}
 
 
 # ─── WebSocket ────────────────────────────────────────────────────────────────
