@@ -29,13 +29,14 @@ function createOverlayWindow() {
   const { width, height } = screen.getPrimaryDisplay().bounds;
 
   overlayWindow = new BrowserWindow({
-    width: 760,
-    height: 96,
-    x: Math.round(width / 2 - 380),
-    y: Math.round(height * 0.4),
+    width: 430,
+    height: Math.min(560, height - 24),
+    x: width - 430 - 12,
+    y: 12,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
+    type: 'toolbar',
     skipTaskbar: true,
     resizable: false,
     show: false,
@@ -47,6 +48,7 @@ function createOverlayWindow() {
   });
 
   overlayWindow.loadURL(getWindowUrl('overlay'));
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
 
   let justShown = false;
   overlayWindow._setJustShown = () => {
@@ -54,9 +56,19 @@ function createOverlayWindow() {
     setTimeout(() => (justShown = false), 300);
   };
 
+  overlayWindow.once('ready-to-show', () => {
+    if (!overlayWindow) return;
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    overlayWindow.setFocusable(false);
+    overlayWindow.showInactive();
+    overlayWindow.webContents.send('assistant-collapse-to-dot');
+  });
+
   overlayWindow.on('blur', () => {
     if (justShown) return;
-    overlayWindow.hide();
+    overlayWindow.webContents.send('assistant-collapse-to-dot');
+    if (overlayWindow) overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+    overlayWindow.showInactive();
   });
 }
 
@@ -71,7 +83,10 @@ function createSidebarWindow() {
     x: width - 320,
     y: 0,
     frame: false,
+    transparent: true,
     alwaysOnTop: true,
+      type: 'toolbar',
+      skipTaskbar: true,
     resizable: false,
     show: false, // 👈 important (start hidden)
     webPreferences: {
@@ -81,6 +96,15 @@ function createSidebarWindow() {
     },
   });
 
+  sidebarWindow.setAlwaysOnTop(true, 'screen-saver');
+  sidebarWindow.on('blur', () => { 
+    if (sidebarWindow) {
+      sidebarWindow.setAlwaysOnTop(true, 'screen-saver');
+    } 
+  });
+  if (process.platform === 'darwin') {
+    sidebarWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  }
   sidebarWindow.loadURL(getWindowUrl('sidebar'));
 }
 
@@ -96,14 +120,12 @@ function showSidebar() {
 function toggleOverlay() {
   if (!overlayWindow) return;
 
-  if (overlayWindow.isVisible()) {
-    overlayWindow.hide();
-  } else {
-    overlayWindow._setJustShown();
+  overlayWindow._setJustShown();
+  if (!overlayWindow.isVisible()) {
     overlayWindow.show();
-    overlayWindow.focus();
-    overlayWindow.webContents.send('overlay-focus');
   }
+  overlayWindow.focus();
+  overlayWindow.webContents.send('assistant-open-panel');
 }
 
 // ───────────────── IPC ─────────────────
@@ -138,31 +160,59 @@ function spawnBackend() {
 function setupIPC() {
   ipcMain.on('task-submitted', (event, description) => {
     if (!description || description === '__dismiss__') {
-      overlayWindow?.hide();
+      overlayWindow?.webContents.send('assistant-collapse-to-dot');
       return;
     }
 
     console.log('[ARIA] Task:', description);
 
-    overlayWindow?.hide();
+    overlayWindow?.webContents.send('assistant-collapse-to-dot');
     showSidebar();
 
+    // Tell UI to expand sidebar if it's collapsed
+    sidebarWindow?.webContents.send('expand-sidebar');
     sidebarWindow?.webContents.send('task-submitted', description);
   });
 
-  ipcMain.on('window-action', (event, action) => {
-   const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win) return;
-
-  if (action === 'minimize') {
-    if (win === sidebarWindow) {
-      sidebarWindow.minimize();   // ✅ actual minimize
+  ipcMain.on('set-sidebar-collapsed', (event, isCollapsed) => {
+    if (!sidebarWindow) return;
+    const { screen } = require('electron');
+    const { width, height } = screen.getPrimaryDisplay().bounds;
+    
+    if (isCollapsed) {
+      if (process.platform === 'win32') sidebarWindow.setFocusable(false);
+      sidebarWindow.hide();
     } else {
-      win.hide(); // overlay hide
+      if (process.platform === 'win32') sidebarWindow.setFocusable(true);
+      // Full sidebar on the right
+      sidebarWindow.setBounds({
+        width: 320,
+        height: height,
+        x: width - 320,
+        y: 0
+      });
+      sidebarWindow.show();
     }
-  }
+    // Re-enforce always-on-top so Windows doesn't push it back on resize
+      sidebarWindow.setAlwaysOnTop(true, 'screen-saver');
+      if (process.platform === 'darwin') {
+        sidebarWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      }
+  });
 
-  if (action === 'close') {
+  ipcMain.on('window-action', (event, action) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+
+    if (action === 'minimize') {
+      if (win === sidebarWindow) {
+        sidebarWindow.minimize();   // ✅ actual minimize
+      } else {
+        win.hide(); // overlay hide
+      }
+    }
+
+    if (action === 'close') {
     if (win === overlayWindow) {
       overlayWindow.hide();
     } else if (win === sidebarWindow) {
@@ -172,6 +222,30 @@ function setupIPC() {
     }
   }
 });
+
+  ipcMain.on('set-overlay-active', (event, isActive) => {
+    if (!overlayWindow) return;
+
+    if (isActive) {
+      overlayWindow.setIgnoreMouseEvents(false);
+      overlayWindow.setFocusable(true);
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+      overlayWindow.show();
+      overlayWindow.focus();
+      return;
+    }
+
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    overlayWindow.setFocusable(false);
+    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+    overlayWindow.showInactive();
+  });
+
+  ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    win.setIgnoreMouseEvents(ignore, options);
+  });
 }
 
 // ───────────────── Tray ─────────────────

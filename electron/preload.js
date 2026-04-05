@@ -16,6 +16,31 @@ contextBridge.exposeInMainWorld('aria', {
   },
 
   /**
+   * Set sidebar collapsed state
+   * @param {boolean} isCollapsed
+   */
+  setSidebarCollapsed: (isCollapsed) => {
+    ipcRenderer.send('set-sidebar-collapsed', isCollapsed);
+  },
+
+  /**
+   * Inform main process whether assistant panel is active.
+   * @param {boolean} isActive
+   */
+  setOverlayActive: (isActive) => {
+    ipcRenderer.send('set-overlay-active', isActive);
+  },
+
+  /**
+   * Set ignore mouse events mode for the window.
+   * @param {boolean} ignore
+   * @param {{forward?: boolean}} options
+   */
+  setIgnoreMouseEvents: (ignore, options) => {
+    ipcRenderer.send('set-ignore-mouse-events', ignore, options);
+  },
+
+  /**
    * Control current window (minimize/close) from renderer.
    * @param {'minimize'|'close'} action
    */
@@ -46,11 +71,35 @@ contextBridge.exposeInMainWorld('aria', {
   },
 
   /**
+   * Listen for explicit assistant panel open command.
+   * @param {() => void} callback
+   */
+  onAssistantOpenPanel: (callback) => {
+    ipcRenderer.on('assistant-open-panel', () => callback());
+  },
+
+  /**
+   * Listen for collapse-to-dot requests from main process.
+   * @param {() => void} callback
+   */
+  onAssistantCollapseToDot: (callback) => {
+    ipcRenderer.on('assistant-collapse-to-dot', () => callback());
+  },
+
+  /**
    * Listen for task submitted event (forwarded from overlay to sidebar).
    * @param {(description: string) => void} callback
    */
   onTaskSubmitted: (callback) => {
     ipcRenderer.on('task-submitted', (event, description) => callback(description));
+  },
+
+  /**
+   * Listen for expand sidebar command from main process.
+   * @param {() => void} callback
+   */
+  onExpandSidebar: (callback) => {
+    ipcRenderer.on('expand-sidebar', () => callback());
   },
 
   /**

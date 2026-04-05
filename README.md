@@ -18,6 +18,13 @@ A local AI agent platform that runs on your computer, accepts natural language c
 .\scripts\start-dev.ps1
 ```
 
+### Build Executable (Windows Installer)
+To generate the `ARIA Setup 1.0.0.exe` installer for your system:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
+```
+*(The generated .exe file will be available in the `dist-installer/` folder).*
+
 ### Usage
 1. Press `Ctrl+Shift+Space` from anywhere
 2. Type a task in plain English
