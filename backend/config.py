@@ -6,9 +6,11 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# .env lives in the project root (one level above backend/)
-ENV_FILE = Path(__file__).parent.parent / ".env"
-load_dotenv(ENV_FILE)
+# Load .env from project root or backend dir
+env_path = Path(__file__).parent.parent / ".env"
+if not env_path.exists():
+    env_path = Path(__file__).parent / ".env"
+load_dotenv(env_path)
 
 
 class Settings:

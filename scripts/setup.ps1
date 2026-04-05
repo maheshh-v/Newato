@@ -1,3 +1,4 @@
+.\scripts\setup.ps1
 # ARIA Setup Script (Windows PowerShell)
 # Run this once on a new machine to install all dependencies.
 # Usage: .\scripts\setup.ps1

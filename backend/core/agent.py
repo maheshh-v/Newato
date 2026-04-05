@@ -74,12 +74,12 @@ Available tool categories:
 6. task_failed - If task cannot be completed
 
 TOOL PRIORITY for "{task_description}":
-- If task mentions "search" → Option 1 FIRST: screen_search_human(query, app)
-- If Option 1 fails → Option 2: screen_search_web(query, app)
-- If task mentions "brave", "chrome", "firefox", "edge" and no search query → Use screen_open_app
+- If task mentions "search" → Option 1 FIRST: the screen_search_human tool
+- If Option 1 fails → Option 2: the screen_search_web tool
+- If task mentions "brave", "chrome", "firefox", "edge" and no search query → Use the screen_open_app tool
 - If task mentions "click", "navigate" → Prefer browser_* tools first; use screen_click/screen_type only when explicitly required
-- If task mentions "take screenshot" or "see" → Use take_screenshot
-- If task mentions "code", "python", "execute" → Use run_python
+- If task mentions "take screenshot" or "see" → Use the take_screenshot tool
+- If task mentions "code", "python", "execute" → Use the run_python tool
 
 SAFETY RULES (MANDATORY):
 - Never click/type in chats, groups, social media, or messaging UIs unless user explicitly asked.
@@ -143,7 +143,7 @@ async def run_agent(task: Task) -> None:
 
     if settings.LLM_PROVIDER == "anthropic":
         client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    elif settings.LLM_PROVIDER in ("groq", "deepseek", "openai", "custom"):
+    elif settings.LLM_PROVIDER in ("groq", "deepseek", "openai"):
         if settings.LLM_PROVIDER == "groq":
             client = groq.AsyncGroq(api_key=settings.GROQ_API_KEY)
         elif settings.LLM_PROVIDER == "deepseek":
@@ -157,14 +157,6 @@ async def run_agent(task: Task) -> None:
             )
         elif settings.LLM_PROVIDER == "openai":
             client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        elif settings.LLM_PROVIDER == "custom":
-            # Custom / Other — any OpenAI-compatible API
-            from httpx import Timeout
-            timeout = Timeout(timeout=60.0, connect=30.0, read=60.0)
-            custom_kwargs = {"api_key": settings.CUSTOM_API_KEY, "timeout": timeout}
-            if settings.CUSTOM_BASE_URL:
-                custom_kwargs["base_url"] = settings.CUSTOM_BASE_URL
-            client = AsyncOpenAI(**custom_kwargs)
     else:
         raise ValueError(f"Unknown LLM provider: {settings.LLM_PROVIDER}")
 
@@ -336,8 +328,14 @@ async def run_agent(task: Task) -> None:
                         tool_choice="auto",
                     )
                 except Exception as e:
-                    logger.error(f"{settings.LLM_PROVIDER.capitalize()} API error", task_id=task_id, error=str(e), exc_info=True)
-                    await _finalize_failure(task_id, db, f"API error: {str(e)[:200]}", f"{settings.LLM_PROVIDER} API call")
+                    err_str = str(e)
+                    if "failed_generation" in err_str or "tool_use_failed" in err_str:
+                        logger.warning(f"Groq validation error, retrying: {err_str[:200]}")
+                        groq_messages.append({"role": "user", "content": "Your previous output was invalid. You must emit a valid JSON tool call. Do not just write the function name in text."})
+                        continue
+                    
+                    logger.error(f"{settings.LLM_PROVIDER.capitalize()} API error", task_id=task_id, error=err_str, exc_info=True)
+                    await _finalize_failure(task_id, db, f"API error: {err_str[:200]}", f"{settings.LLM_PROVIDER} API call")
                     return
                 
                 msg = response.choices[0].message
