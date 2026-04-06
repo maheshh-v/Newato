@@ -13,6 +13,10 @@ const SHORTCUT = process.platform === 'darwin'
   ? 'Command+Shift+Space'
   : 'Control+Shift+Space';
 
+const SIDEBAR_SHORTCUT = process.platform === 'darwin'
+  ? 'Command+Shift+S'
+  : 'Control+Shift+S';
+
 const getWindowUrl = (winName) => {
   return IS_DEV
     ? `http://localhost:5173/?window=${winName}`
@@ -22,6 +26,7 @@ const getWindowUrl = (winName) => {
 let overlayWindow = null;
 let sidebarWindow = null;
 let tray = null;
+let isOverlayActive = false;
 
 // ───────────────── Overlay ─────────────────
 function createOverlayWindow() {
@@ -84,6 +89,7 @@ function createSidebarWindow() {
     y: 0,
     frame: false,
     transparent: true,
+    thickFrame: false, // Prevents Windows DWM invisible bounds
     alwaysOnTop: true,
       type: 'toolbar',
       skipTaskbar: true,
@@ -112,20 +118,40 @@ function createSidebarWindow() {
 function showSidebar() {
   if (!sidebarWindow) return;
 
+  const { screen } = require('electron');
+  const { width, height } = screen.getPrimaryDisplay().bounds;
+
+  sidebarWindow.setBounds({
+    width: 320,
+    height: height,
+    x: width - 320,
+    y: 0
+  });
+
   sidebarWindow.show();     // 👈 force visible
   sidebarWindow.focus();    // 👈 bring front
+  sidebarWindow.webContents.send('expand-sidebar'); // tell react to expand
 }
 
 // ───────────────── Toggle Overlay ─────────────────
+let lastToggleTime = 0;
 function toggleOverlay() {
   if (!overlayWindow) return;
 
-  overlayWindow._setJustShown();
-  if (!overlayWindow.isVisible()) {
-    overlayWindow.show();
+  const now = Date.now();
+  if (now - lastToggleTime < 500) return; // Prevent spamming/bouncing
+  lastToggleTime = now;
+
+  if (isOverlayActive) {
+    overlayWindow.webContents.send('assistant-collapse-to-dot');
+  } else {
+    overlayWindow._setJustShown();
+    if (!overlayWindow.isVisible()) {
+      overlayWindow.show();
+    }
+    overlayWindow.focus();
+    overlayWindow.webContents.send('assistant-open-panel');
   }
-  overlayWindow.focus();
-  overlayWindow.webContents.send('assistant-open-panel');
 }
 
 // ───────────────── IPC ─────────────────
@@ -161,6 +187,12 @@ function setupIPC() {
   ipcMain.on('task-submitted', (event, description) => {
     if (!description || description === '__dismiss__') {
       overlayWindow?.webContents.send('assistant-collapse-to-dot');
+      return;
+    }
+
+    if (description === '__open_sidebar__') {
+      overlayWindow?.webContents.send('assistant-collapse-to-dot');
+      showSidebar();
       return;
     }
 
@@ -206,9 +238,9 @@ function setupIPC() {
 
     if (action === 'minimize') {
       if (win === sidebarWindow) {
-        sidebarWindow.minimize();   // ✅ actual minimize
+        sidebarWindow.hide();   // revert back to hide to prevent offset
       } else {
-        win.hide(); // overlay hide
+        win.hide();
       }
     }
 
@@ -216,7 +248,7 @@ function setupIPC() {
     if (win === overlayWindow) {
       overlayWindow.hide();
     } else if (win === sidebarWindow) {
-      sidebarWindow.minimize();   // ✅ better UX
+      sidebarWindow.hide();   // revert back
     } else {
       win.hide();
     }
@@ -225,6 +257,7 @@ function setupIPC() {
 
   ipcMain.on('set-overlay-active', (event, isActive) => {
     if (!overlayWindow) return;
+    isOverlayActive = isActive;
 
     if (isActive) {
       overlayWindow.setIgnoreMouseEvents(false);
@@ -271,6 +304,7 @@ app.whenReady().then(() => {
   setupIPC();
 
   globalShortcut.register(SHORTCUT, toggleOverlay);
+  globalShortcut.register(SIDEBAR_SHORTCUT, showSidebar);
 
   console.log('🚀 ARIA Ready');
 });

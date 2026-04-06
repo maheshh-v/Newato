@@ -75,7 +75,9 @@ contextBridge.exposeInMainWorld('aria', {
    * @param {() => void} callback
    */
   onAssistantOpenPanel: (callback) => {
-    ipcRenderer.on('assistant-open-panel', () => callback());
+    const handler = () => callback();
+    ipcRenderer.on('assistant-open-panel', handler);
+    return () => ipcRenderer.removeListener('assistant-open-panel', handler);
   },
 
   /**
@@ -83,7 +85,9 @@ contextBridge.exposeInMainWorld('aria', {
    * @param {() => void} callback
    */
   onAssistantCollapseToDot: (callback) => {
-    ipcRenderer.on('assistant-collapse-to-dot', () => callback());
+    const handler = () => callback();
+    ipcRenderer.on('assistant-collapse-to-dot', handler);
+    return () => ipcRenderer.removeListener('assistant-collapse-to-dot', handler);
   },
 
   /**
@@ -91,7 +95,9 @@ contextBridge.exposeInMainWorld('aria', {
    * @param {(description: string) => void} callback
    */
   onTaskSubmitted: (callback) => {
-    ipcRenderer.on('task-submitted', (event, description) => callback(description));
+    const handler = (event, description) => callback(description);
+    ipcRenderer.on('task-submitted', handler);
+    return () => ipcRenderer.removeListener('task-submitted', handler);
   },
 
   /**
@@ -99,7 +105,9 @@ contextBridge.exposeInMainWorld('aria', {
    * @param {() => void} callback
    */
   onExpandSidebar: (callback) => {
-    ipcRenderer.on('expand-sidebar', () => callback());
+    const handler = () => callback();
+    ipcRenderer.on('expand-sidebar', handler);
+    return () => ipcRenderer.removeListener('expand-sidebar', handler);
   },
 
   /**
